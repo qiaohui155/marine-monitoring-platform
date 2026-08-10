@@ -1,0 +1,30 @@
+# Local secrets and environment configuration
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python environments and caches
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Frontend dependencies and generated output
+frontend/node_modules/
+frontend/dist/
+
+# Runtime and editor files
+*.log
+.vscode/
+.vs/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database backups and large geospatial rasters
+database-backup/
+*.backup
+*.dump
+*.tif
+*.tiff
+*.jp2
