@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oman Marine Monitoring Platform</title>
+  <title>Oman Marine Intelligence Center</title>
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
@@ -11,120 +11,241 @@
 </head>
 <body>
   <main class="platform-shell">
-    <header class="topbar">
-      <div class="brand-block">
-        <div class="brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 48 48"><path d="M24 5l6 8 10 3-6.5 8 1.5 11-11-4-11 4 1.5-11L8 16l10-3 6-8z"/><path d="M14 37c6 4 14 4 20 0M17 42c5 2 9 2 14 0"/></svg>
+    <header class="screen-header">
+      <div class="header-brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M24 4l5.6 8.4 10.2 2.9-6.4 8.2 1.2 10.8L24 30.6l-10.6 3.7 1.2-10.8-6.4-8.2 10.2-2.9L24 4z"/><path d="M13 38c6.8 4.2 15.2 4.2 22 0M17 43c4.8 1.6 9.2 1.6 14 0"/></svg>
         </div>
-        <div><strong>Oman Marine Monitor</strong><span>Vessel & Pollution Intelligence</span></div>
+        <div>
+          <span>LOCAL GIS OPERATIONS</span>
+          <strong>Oman Marine Intelligence</strong>
+        </div>
       </div>
 
-      <nav class="top-nav" aria-label="Platform modules">
-        <button class="nav-tab active" data-view="vessels">Live Vessels</button>
-        <button class="nav-tab" data-view="tracks">Historical Tracks</button>
-        <button class="nav-tab" data-view="pollution">Pollution Events</button>
-        <button class="nav-tab disabled" title="Next development stage">Incident Archive</button>
-      </nav>
+      <div class="title-lockup">
+        <i></i>
+        <div>
+          <h1>MARINE MONITORING &amp; WARNING CENTER</h1>
+          <p>阿曼海上油污与船舶监测平台</p>
+        </div>
+        <i></i>
+      </div>
 
-      <div class="top-actions">
-        <form class="search-box" id="searchForm">
-          <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
-          <input id="shipSearch" autocomplete="off" placeholder="Search ship name or MMSI" />
-          <button type="submit">Search</button>
-        </form>
+      <div class="header-status">
         <div class="connection-pill" id="connectionPill"><i></i><span>Connecting API</span></div>
-        <button class="user-avatar" aria-label="User profile">OM</button>
+        <div class="header-clock"><strong id="dashboardClock">--:--:--</strong><span id="dashboardDate">LOCAL TIME</span></div>
+        <button class="user-avatar" aria-label="Operator profile">OM</button>
       </div>
     </header>
 
-    <section id="map" aria-label="Gulf of Oman vessel map"></section>
-
-    <aside class="map-tools" aria-label="Map tools">
-      <button id="homeMap" title="Return to Gulf of Oman">
-        <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-6v-6h-4v6H4v-9z"/></svg>
-      </button>
-      <button id="zoomIn" title="Zoom in">+</button>
-      <button id="zoomOut" title="Zoom out">−</button>
-      <button id="toggleLabels" class="active" title="Toggle ship labels">Aa</button>
-    </aside>
-
-    <aside class="control-panel">
-      <div class="panel-heading">
-        <div><span class="overline">OPERATIONAL VIEW</span><h1>Vessel Monitoring</h1></div>
-        <button id="collapseControl" aria-label="Collapse panel">‹</button>
-      </div>
-
-      <section class="summary-grid">
-        <article><span>Visible vessels</span><strong id="totalShips">—</strong></article>
-        <article><span>Latest update</span><strong id="latestUpdate">—</strong></article>
-      </section>
-
-      <section class="operational-grid" aria-label="Operational database summary">
-        <article><span>Track vessels</span><strong id="statTrackVessels">—</strong></article>
-        <article><span>Pollution events</span><strong id="statPollutionEvents">—</strong></article>
-        <article><span>Suspected vessels</span><strong id="statSuspiciousShips">—</strong></article>
-        <article><span>Warning areas</span><strong id="statWarnings">—</strong></article>
-      </section>
-
-      <section class="panel-section">
-        <div class="section-heading"><span>Vessel Types</span><button id="resetFilters">Show all</button></div>
-        <div class="type-filters">
-          <label><input type="checkbox" value="Cargo" checked><i class="cargo"></i><span>Cargo</span><b id="countCargo">0</b></label>
-          <label><input type="checkbox" value="Tanker" checked><i class="tanker"></i><span>Tanker</span><b id="countTanker">0</b></label>
-          <label><input type="checkbox" value="Fishing" checked><i class="fishing"></i><span>Fishing</span><b id="countFishing">0</b></label>
-          <label><input type="checkbox" value="Passenger" checked><i class="passenger"></i><span>Passenger</span><b id="countPassenger">0</b></label>
-        </div>
-      </section>
-
-      <section class="panel-section">
-        <div class="section-heading"><span>Map Layers</span></div>
-        <label class="layer-switch"><span><i class="layer-dot vessels"></i>Vessel positions</span><input id="vesselLayerToggle" type="checkbox" checked><em></em></label>
-        <label class="layer-switch"><span><i class="layer-dot tracks"></i>Historical tracks</span><input id="trackLayerToggle" type="checkbox"><em></em></label>
-        <label class="layer-switch"><span><i class="layer-dot pollution"></i>Pollution events</span><input id="pollutionLayerToggle" type="checkbox" checked><em></em></label>
-        <label class="layer-switch"><span><i class="layer-dot risk"></i>Risk areas</span><input id="riskLayerToggle" type="checkbox"><em></em></label>
-        <label class="layer-switch"><span><i class="layer-dot suspicious"></i>Suspected vessels</span><input id="suspiciousLayerToggle" type="checkbox" checked><em></em></label>
-        <label class="layer-switch"><span><i class="layer-dot warning"></i>Warning areas</span><input id="warningLayerToggle" type="checkbox"><em></em></label>
-        <p class="next-stage-note">All operational layers are loaded from the local PostGIS API and refreshed automatically.</p>
-      </section>
-
-      <section class="legend-section">
-        <span class="overline">SHIP SYMBOL</span>
-        <p>The symbol direction represents the AIS course. Colors represent vessel type.</p>
-      </section>
-    </aside>
-
-    <button class="open-control" id="openControl" aria-label="Open vessel controls">☰</button>
-
-    <aside class="detail-panel" id="detailPanel" aria-live="polite">
-      <button class="detail-close" id="detailClose" aria-label="Close details">×</button>
-      <div class="detail-top">
-        <div class="detail-ship-icon" id="detailShipIcon">▲</div>
-        <div><span class="status-label"><i></i>DATABASE VESSEL</span><h2 id="detailName">Select a vessel</h2><p id="detailIdentity">Click a ship symbol on the map</p></div>
-      </div>
-      <div class="detail-body">
-        <div class="detail-update"><span>Latest database position</span><strong id="detailTime">—</strong></div>
-        <div class="detail-metrics">
-          <article><span>Speed</span><strong id="detailSpeed">—</strong></article>
-          <article><span>Course</span><strong id="detailCourse">—</strong></article>
-          <article><span>Latitude</span><strong id="detailLatitude">—</strong></article>
-          <article><span>Longitude</span><strong id="detailLongitude">—</strong></article>
-        </div>
-        <dl class="detail-list">
-          <div><dt>Vessel type</dt><dd id="detailType">—</dd></div>
-          <div><dt>MMSI</dt><dd id="detailMmsi">—</dd></div>
-          <div><dt>Database ID</dt><dd id="detailId">—</dd></div>
-        </dl>
-        <button class="future-action" id="showTrackButton">Show Historical Track</button>
-      </div>
-    </aside>
-
-    <section class="loading-screen" id="loadingScreen">
-      <div class="radar-loader"><i></i><b></b></div>
-      <strong>Loading vessel positions</strong>
-      <span>Reading ship_position through the local API…</span>
+    <section class="headline-strip" aria-label="Live monitoring headline statistics">
+      <article><span>LIVE VESSELS</span><strong id="totalShips">—</strong><small>Current database positions</small></article>
+      <article><span>TRACKED VESSELS</span><strong id="statTrackVessels">—</strong><small id="trackedPoints">Historical points: —</small></article>
+      <article><span>POLLUTION EVENTS</span><strong id="statPollutionEvents">—</strong><small id="affectedArea">Affected area: —</small></article>
+      <article><span>SUSPECTED VESSELS</span><strong id="statSuspiciousShips">—</strong><small id="highRiskShips">High risk: —</small></article>
+      <article><span>ACTIVE WARNINGS</span><strong id="statWarnings">—</strong><small id="statRiskAreas">Risk areas: —</small></article>
+      <article class="latest-card"><span>LATEST AIS UPDATE</span><strong id="latestUpdate">—</strong><small>Automatic refresh every 15 seconds</small></article>
     </section>
 
-    <div class="map-message" id="mapMessage"></div>
+    <section class="dashboard-grid">
+      <aside class="control-panel dashboard-column left-column">
+        <section class="data-panel vessel-mix-panel">
+          <div class="panel-heading">
+            <div><span class="panel-index">01</span><div><small>FLEET COMPOSITION</small><h2>Vessel Type Distribution</h2></div></div>
+            <button id="collapseControl" aria-label="Collapse left panel">‹</button>
+          </div>
+          <div class="type-filters">
+            <label>
+              <input type="checkbox" value="Cargo" checked>
+              <span class="type-name"><i class="cargo"></i>Cargo</span><b id="countCargo">0</b>
+              <em><u id="barCargo"></u></em>
+            </label>
+            <label>
+              <input type="checkbox" value="Tanker" checked>
+              <span class="type-name"><i class="tanker"></i>Tanker</span><b id="countTanker">0</b>
+              <em><u id="barTanker"></u></em>
+            </label>
+            <label>
+              <input type="checkbox" value="Fishing" checked>
+              <span class="type-name"><i class="fishing"></i>Fishing</span><b id="countFishing">0</b>
+              <em><u id="barFishing"></u></em>
+            </label>
+            <label>
+              <input type="checkbox" value="Passenger" checked>
+              <span class="type-name"><i class="passenger"></i>Passenger</span><b id="countPassenger">0</b>
+              <em><u id="barPassenger"></u></em>
+            </label>
+          </div>
+          <button class="text-action" id="resetFilters">SHOW ALL VESSEL TYPES</button>
+        </section>
+
+        <section class="data-panel layer-panel">
+          <div class="panel-heading compact">
+            <div><span class="panel-index">02</span><div><small>OPERATIONAL OVERLAYS</small><h2>Map Layer Control</h2></div></div>
+          </div>
+          <div class="layer-list">
+            <label class="layer-switch"><span><i class="layer-dot vessels"></i>Vessel positions</span><input id="vesselLayerToggle" type="checkbox" checked><em></em></label>
+            <label class="layer-switch"><span><i class="layer-dot tracks"></i>Historical tracks</span><input id="trackLayerToggle" type="checkbox"><em></em></label>
+            <label class="layer-switch"><span><i class="layer-dot pollution"></i>Pollution events</span><input id="pollutionLayerToggle" type="checkbox" checked><em></em></label>
+            <label class="layer-switch"><span><i class="layer-dot risk"></i>Risk areas</span><input id="riskLayerToggle" type="checkbox"><em></em></label>
+            <label class="layer-switch"><span><i class="layer-dot suspicious"></i>Suspected vessels</span><input id="suspiciousLayerToggle" type="checkbox" checked><em></em></label>
+            <label class="layer-switch"><span><i class="layer-dot warning"></i>Warning areas</span><input id="warningLayerToggle" type="checkbox"><em></em></label>
+          </div>
+          <p class="data-note"><i></i>Layers are served by the local PostGIS API and refreshed automatically.</p>
+        </section>
+
+        <section class="data-panel system-panel">
+          <div class="panel-heading compact">
+            <div><span class="panel-index">03</span><div><small>DATA PIPELINE</small><h2>System Readiness</h2></div></div>
+          </div>
+          <div class="system-status-list">
+            <div><span><i class="online"></i>PostGIS database</span><b>ONLINE</b></div>
+            <div><span><i class="online"></i>FastAPI service</span><b>ONLINE</b></div>
+            <div><span><i class="online"></i>AIS refresh cycle</span><b>15 SEC</b></div>
+            <div><span><i class="online"></i>Coordinate system</span><b>WGS 84</b></div>
+          </div>
+        </section>
+      </aside>
+
+      <section class="center-stage">
+        <section class="map-panel data-panel">
+          <div class="map-panel-header">
+            <div class="map-title">
+              <span class="panel-index">04</span>
+              <div><small>GULF OF OMAN OPERATIONAL PICTURE</small><h2>Live Maritime Situation Map</h2></div>
+            </div>
+            <nav class="top-nav" aria-label="Platform modules">
+              <button class="nav-tab active" data-view="vessels">Live Vessels</button>
+              <button class="nav-tab" data-view="tracks">Historical Tracks</button>
+              <button class="nav-tab" data-view="pollution">Pollution Situation</button>
+            </nav>
+            <form class="search-box" id="searchForm">
+              <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+              <input id="shipSearch" autocomplete="off" placeholder="Ship name or MMSI" />
+              <button type="submit">SEARCH</button>
+            </form>
+          </div>
+
+          <div class="map-viewport">
+            <section id="map" aria-label="Gulf of Oman vessel map"></section>
+            <div class="map-grid-overlay" aria-hidden="true"></div>
+            <div class="map-corner top-left" aria-hidden="true"></div>
+            <div class="map-corner top-right" aria-hidden="true"></div>
+            <div class="map-corner bottom-left" aria-hidden="true"></div>
+            <div class="map-corner bottom-right" aria-hidden="true"></div>
+
+            <aside class="map-tools" aria-label="Map tools">
+              <button id="homeMap" title="Return to Gulf of Oman">
+                <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-6v-6h-4v6H4v-9z"/></svg>
+              </button>
+              <button id="zoomIn" title="Zoom in">+</button>
+              <button id="zoomOut" title="Zoom out">−</button>
+              <button id="toggleLabels" class="active" title="Toggle ship labels">Aa</button>
+            </aside>
+
+            <div class="map-live-badge"><i></i><span>LIVE MAP</span><b id="mapZoom">Z 5.3</b></div>
+            <button class="open-control" id="openControl" aria-label="Open vessel controls">☰</button>
+
+            <aside class="detail-panel" id="detailPanel" aria-live="polite">
+              <button class="detail-close" id="detailClose" aria-label="Close details">×</button>
+              <div class="detail-top">
+                <div class="detail-ship-icon" id="detailShipIcon">▲</div>
+                <div><span class="status-label"><i></i>DATABASE VESSEL</span><h2 id="detailName">Select a vessel</h2><p id="detailIdentity">Click a ship symbol on the map</p></div>
+              </div>
+              <div class="detail-body">
+                <div class="detail-update"><span>Latest database position</span><strong id="detailTime">—</strong></div>
+                <div class="detail-metrics">
+                  <article><span>Speed</span><strong id="detailSpeed">—</strong></article>
+                  <article><span>Course</span><strong id="detailCourse">—</strong></article>
+                  <article><span>Latitude</span><strong id="detailLatitude">—</strong></article>
+                  <article><span>Longitude</span><strong id="detailLongitude">—</strong></article>
+                </div>
+                <dl class="detail-list">
+                  <div><dt>Vessel type</dt><dd id="detailType">—</dd></div>
+                  <div><dt>MMSI</dt><dd id="detailMmsi">—</dd></div>
+                  <div><dt>Database ID</dt><dd id="detailId">—</dd></div>
+                </dl>
+                <button class="future-action" id="showTrackButton">SHOW HISTORICAL TRACK</button>
+              </div>
+            </aside>
+
+            <section class="loading-screen" id="loadingScreen">
+              <div class="radar-loader"><i></i><b></b></div>
+              <strong>Loading vessel positions</strong>
+              <span>Reading ship_position through the local API…</span>
+            </section>
+            <div class="map-message" id="mapMessage"></div>
+          </div>
+        </section>
+
+        <section class="lower-intelligence-grid">
+          <article class="data-panel footprint-panel">
+            <div class="panel-heading compact">
+              <div><span class="panel-index">05</span><div><small>RECENT EVENT PROFILE</small><h2>Pollution Footprint Comparison</h2></div></div>
+              <span class="unit-label">AREA · KM²</span>
+            </div>
+            <div class="mini-chart-wrap">
+              <svg id="activityTrend" viewBox="0 0 520 118" preserveAspectRatio="none" aria-label="Recent pollution footprint chart">
+                <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25d9dd" stop-opacity=".32"/><stop offset="1" stop-color="#25d9dd" stop-opacity="0"/></linearGradient></defs>
+                <g class="chart-grid"><path d="M0 18H520M0 48H520M0 78H520M0 108H520"/><path d="M40 0V118M160 0V118M280 0V118M400 0V118"/></g>
+                <path id="trendArea" class="trend-area" d="M0 108L520 108Z"/>
+                <polyline id="trendLine" class="trend-line" points="0,108 520,108"/>
+                <g id="trendDots"></g>
+              </svg>
+            </div>
+          </article>
+
+          <article class="data-panel recent-events-panel">
+            <div class="panel-heading compact">
+              <div><span class="panel-index">06</span><div><small>INCIDENT ARCHIVE</small><h2>Recent Pollution Events</h2></div></div>
+              <span class="pulse-label"><i></i>LIVE</span>
+            </div>
+            <div class="recent-events-list" id="recentEventsList">
+              <div class="empty-row">Waiting for database records…</div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <aside class="dashboard-column right-column">
+        <section class="data-panel risk-panel">
+          <div class="panel-heading compact">
+            <div><span class="panel-index">07</span><div><small>RISK INTELLIGENCE</small><h2>Current Risk Signals</h2></div></div>
+          </div>
+          <div class="risk-gauge-wrap">
+            <div class="risk-gauge" id="riskGauge"><div><strong id="riskGaugeValue">0</strong><span>HIGH-RISK<br>SIGNALS</span></div></div>
+            <div class="risk-legend">
+              <div><i class="warning-key"></i><span>Warnings</span><b id="gaugeWarnings">0</b></div>
+              <div><i class="suspect-key"></i><span>Suspected</span><b id="gaugeSuspects">0</b></div>
+              <div><i class="spill-key"></i><span>Pollution</span><b id="gaugePollution">0</b></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="data-panel event-status-panel">
+          <div class="panel-heading compact">
+            <div><span class="panel-index">08</span><div><small>RESPONSE WORKFLOW</small><h2>Incident Status</h2></div></div>
+          </div>
+          <div class="status-bars" id="eventStatusBars">
+            <div class="empty-row">Waiting for status summary…</div>
+          </div>
+        </section>
+
+        <section class="data-panel watch-panel">
+          <div class="panel-heading compact">
+            <div><span class="panel-index">09</span><div><small>MONITORING FOCUS</small><h2>Operational Watch</h2></div></div>
+          </div>
+          <div class="watch-grid">
+            <article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article>
+            <article><span>SOHAR</span><strong>LIVE</strong><small>Port traffic</small></article>
+            <article><span>MUSCAT</span><strong>LIVE</strong><small>Coastal watch</small></article>
+            <article><span>DUQM</span><strong>LIVE</strong><small>Offshore watch</small></article>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <div class="map-message" id="globalMessage"></div>
 
     <footer class="statusbar">
       <span id="mouseCoordinates">Move the pointer over the map</span>
@@ -132,7 +253,7 @@
       <span id="apiCount">API records: —</span>
       <span id="refreshStatus">Auto-refresh: every 15 s</span>
       <span class="status-spacer"></span>
-      <span class="live-status"><i></i>Local PostGIS connection</span>
+      <span class="live-status"><i></i>LOCAL POSTGIS CONNECTION</span>
     </footer>
   </main>
 

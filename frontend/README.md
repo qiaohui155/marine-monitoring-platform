@@ -1,17 +1,22 @@
-# Formal Frontend — Stage 1
+# Oman Marine Monitoring Dashboard
 
-This is a new frontend built for the real `Oman_Oil_Monitor` database. It does not reuse the earlier static demonstration interface.
+This frontend is the browser-based operational screen for the local Oman marine monitoring platform. It uses MapLibre GL JS and reads all business data from the local FastAPI service at `http://127.0.0.1:8000`.
 
-Implemented in stage 1:
+## Current functions
 
-- Real OpenStreetMap basemap
-- Live loading from `GET /api/ships`
-- All `ship_position` records rendered as directional vessel symbols
-- Vessel type colors and filters
-- Ship name / MMSI search through the API
-- Click-to-open vessel details
-- API and record status display
+- Live AIS vessel positions with course-oriented symbols
+- Overview vessel symbols below zoom 9 and type colors at detailed zoom levels
+- Vessel name and MMSI search
+- Vessel type filters and layer controls
+- Historical vessel tracks
+- Pollution events, sea-risk areas, suspected vessels, and warning areas
+- Dynamic dashboard statistics, risk signals, incident status, and recent events
+- Automatic API refresh every 15 seconds
 
-Historical tracks, pollution events, risk areas, and the incident archive are intentionally disabled until their database structures are verified.
+## Main files
 
-To open the current development platform, double-click `..\start_platform.bat`.
+- `index.html` — dashboard structure, panels, controls, and labels
+- `styles.css` — responsive business-screen layout, colors, and visual styling
+- `app.js` — map rendering, API calls, statistics, filtering, and interaction
+
+To run the complete local platform, double-click `..\start_platform.bat` and open `http://127.0.0.1:5173/`.

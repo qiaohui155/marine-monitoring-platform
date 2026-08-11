@@ -2,6 +2,7 @@ const API_BASE = 'http://127.0.0.1:8000';
 const AUTO_REFRESH_MS = 15000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const TYPE_COLORS = {
+  Overview: '#ffd84d',
   Cargo: '#e15d65',
   Tanker: '#16a3c1',
   Fishing: '#7759c7',
@@ -20,11 +21,12 @@ let labelsVisible = true;
 let selectedFeatureId = null;
 let selectedMmsi = null;
 let refreshTimer = null;
+let clockTimer = null;
 let vesselRefreshRunning = false;
 let operationalRefreshRunning = false;
 
 const LAYER_GROUPS = {
-  vessels: ['vessel-selection', 'vessels', 'vessel-labels'],
+  vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
   tracks: ['track-lines'],
   pollution: ['pollution-fills', 'pollution-outlines'],
   risk: ['risk-fills', 'risk-outlines'],
@@ -48,7 +50,19 @@ function rasterStyle() {
         attribution: '© OpenStreetMap contributors'
       }
     },
-    layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 19 }]
+    layers: [{
+      id: 'osm',
+      type: 'raster',
+      source: 'osm',
+      minzoom: 0,
+      maxzoom: 19,
+      paint: {
+        'raster-saturation': -1,
+        'raster-contrast': .18,
+        'raster-brightness-min': .03,
+        'raster-brightness-max': .56
+      }
+    }]
   };
 }
 
@@ -230,6 +244,7 @@ function addVesselLayers() {
     id: 'vessel-selection',
     type: 'circle',
     source: 'vessels',
+    minzoom: 9,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 8, 9, 14],
       'circle-color': '#ffffff',
@@ -239,12 +254,27 @@ function addVesselLayers() {
     }
   });
   map.addLayer({
+    id: 'vessels-overview',
+    type: 'symbol',
+    source: 'vessels',
+    maxzoom: 9,
+    layout: {
+      'icon-image': 'ship-overview',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 4, .30, 6, .38, 8.9, .52],
+      'icon-rotate': ['coalesce', ['to-number', ['get', 'course']], 0],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true
+    }
+  });
+  map.addLayer({
     id: 'vessels',
     type: 'symbol',
     source: 'vessels',
+    minzoom: 9,
     layout: {
       'icon-image': shipImageExpression(),
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 4, .42, 7, .56, 10, .74],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 9, .54, 12, .72],
       'icon-rotate': ['coalesce', ['to-number', ['get', 'course']], 0],
       'icon-rotation-alignment': 'map',
       'icon-allow-overlap': true,
@@ -255,28 +285,30 @@ function addVesselLayers() {
     id: 'vessel-labels',
     type: 'symbol',
     source: 'vessels',
-    minzoom: 7.2,
+    minzoom: 10.5,
     layout: {
       'text-field': ['coalesce', ['get', 'ship_name'], ['get', 'mmsi']],
       'text-font': ['Open Sans Semibold'],
-      'text-size': 10,
+      'text-size': 9,
       'text-offset': [0, 1.55],
       'text-anchor': 'top',
       'text-optional': true
     },
     paint: {
-      'text-color': '#183d55',
-      'text-halo-color': 'rgba(255,255,255,.95)',
-      'text-halo-width': 1.5
+      'text-color': '#c8f8fa',
+      'text-halo-color': 'rgba(2,18,29,.92)',
+      'text-halo-width': 1.7
     }
   });
 
-  map.on('click', 'vessels', event => {
-    const feature = event.features?.[0];
-    if (feature) selectVessel(feature);
+  ['vessels-overview', 'vessels'].forEach(layerId => {
+    map.on('click', layerId, event => {
+      const feature = event.features?.[0];
+      if (feature) selectVessel(feature);
+    });
+    map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
   });
-  map.on('mouseenter', 'vessels', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'vessels', () => { map.getCanvas().style.cursor = ''; });
 }
 
 function setConnection(status, label) {
@@ -299,9 +331,114 @@ function formatDate(value) {
   return date.toLocaleString('en-GB', { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
 
+function numberValue(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function highRiskCount(counts = {}) {
+  return Object.entries(counts).reduce((total, [label, value]) => {
+    const normalized = String(label).toLowerCase();
+    const isHigh = /高|一级|核心|high|critical|level\s*1|red/.test(normalized);
+    return total + (isHigh ? numberValue(value) : 0);
+  }, 0);
+}
+
+function updateVesselMixBars(counts) {
+  const total = Math.max(1, Object.values(counts).reduce((sum, value) => sum + value, 0));
+  Object.entries(counts).forEach(([type, count]) => {
+    const bar = $(`#bar${type}`);
+    if (bar) bar.style.width = `${Math.max(2, count / total * 100)}%`;
+  });
+}
+
+function renderStatusBars(statusCounts = {}) {
+  const container = $('#eventStatusBars');
+  if (!container) return;
+  const entries = Object.entries(statusCounts);
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty-row">No incident status records</div>';
+    return;
+  }
+  const maximum = Math.max(1, ...entries.map(([, value]) => numberValue(value)));
+  container.innerHTML = entries.slice(0, 5).map(([label, value]) => {
+    const count = numberValue(value);
+    return `<div class="status-bar-row"><span>${escapeHtml(label)}</span><em><u style="width:${Math.max(4, count / maximum * 100)}%"></u></em><b>${count.toLocaleString()}</b></div>`;
+  }).join('');
+}
+
+function renderRecentEvents(events = []) {
+  const container = $('#recentEventsList');
+  if (!container) return;
+  if (!events.length) {
+    container.innerHTML = '<div class="empty-row">No pollution events in the archive</div>';
+    return;
+  }
+  container.innerHTML = events.slice(0, 5).map(event => {
+    const area = numberValue(event.area_km2);
+    const areaLabel = area ? `${area.toFixed(2)} km²` : 'Area n/a';
+    return `<div class="recent-event-row"><i></i><strong>${escapeHtml(event.event_id || 'Event')}</strong><span>${escapeHtml(formatDate(event.event_time))}</span><b>${escapeHtml(areaLabel)}</b><em>${escapeHtml(event.status || event.level || 'Recorded')}</em></div>`;
+  }).join('');
+}
+
+function renderFootprintChart(events = []) {
+  const line = $('#trendLine');
+  const area = $('#trendArea');
+  const dots = $('#trendDots');
+  if (!line || !area || !dots) return;
+  const values = events.slice(0, 8).reverse().map(event => numberValue(event.area_km2));
+  if (!values.length) values.push(0, 0);
+  if (values.length === 1) values.unshift(0);
+  const maximum = Math.max(1, ...values);
+  const left = 12;
+  const right = 508;
+  const top = 12;
+  const bottom = 108;
+  const points = values.map((value, index) => {
+    const x = left + (right - left) * index / Math.max(1, values.length - 1);
+    const y = bottom - (bottom - top) * value / maximum;
+    return [x, y];
+  });
+  const pointString = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  line.setAttribute('points', pointString);
+  area.setAttribute('d', `M${left} ${bottom} L${pointString.replaceAll(' ', ' L')} L${right} ${bottom} Z`);
+  dots.innerHTML = points.map(([x, y]) => `<circle class="trend-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/>`).join('');
+}
+
+function updateDashboardVisuals(summary) {
+  const tracks = summary.tracks || {};
+  const pollution = summary.pollution_events || {};
+  const riskAreas = summary.risk_areas || {};
+  const suspicious = summary.suspicious_ships || {};
+  const warnings = summary.warnings || {};
+
+  setText('#trackedPoints', `Historical points: ${numberValue(tracks.points).toLocaleString()}`);
+  setText('#affectedArea', `Affected area: ${numberValue(pollution.total_area_km2).toFixed(2)} km²`);
+  setText('#statRiskAreas', `Risk areas: ${numberValue(riskAreas.total).toLocaleString()}`);
+  setText('#highRiskShips', `High risk: ${highRiskCount(suspicious.by_level).toLocaleString()}`);
+
+  const warningTotal = numberValue(warnings.total);
+  const suspectTotal = numberValue(suspicious.total);
+  const pollutionTotal = numberValue(pollution.total);
+  const highSignals = highRiskCount(warnings.by_level) + highRiskCount(suspicious.by_level) + highRiskCount(pollution.by_level);
+  const signalTotal = Math.max(1, warningTotal + suspectTotal + pollutionTotal);
+  const gaugeAngle = Math.min(270, highSignals / signalTotal * 270);
+  const gauge = $('#riskGauge');
+  if (gauge) gauge.style.setProperty('--gauge-angle', `${gaugeAngle.toFixed(1)}deg`);
+  setText('#riskGaugeValue', highSignals.toLocaleString());
+  setText('#gaugeWarnings', warningTotal.toLocaleString());
+  setText('#gaugeSuspects', suspectTotal.toLocaleString());
+  setText('#gaugePollution', pollutionTotal.toLocaleString());
+
+  renderStatusBars(pollution.by_status);
+  renderRecentEvents(summary.recent_pollution_events);
+  renderFootprintChart(summary.recent_pollution_events);
+}
+
 function updateSummary(data) {
-  $('#totalShips').textContent = data.count.toLocaleString();
-  $('#apiCount').textContent = `API records: ${data.count.toLocaleString()}`;
+  const totalCount = numberValue(data.count || data.features.length);
+  $('#totalShips').textContent = totalCount.toLocaleString();
+  $('#apiCount').textContent = `API records: ${totalCount.toLocaleString()}`;
   const counts = { Cargo:0, Tanker:0, Fishing:0, Passenger:0 };
   let latest = null;
   data.features.forEach(feature => {
@@ -313,6 +450,7 @@ function updateSummary(data) {
   Object.entries(counts).forEach(([type, count]) => {
     $(`#count${type}`).textContent = count.toLocaleString();
   });
+  updateVesselMixBars(counts);
   $('#latestUpdate').textContent = latest ? formatDate(latest) : 'Not available';
 }
 
@@ -403,6 +541,7 @@ async function loadDashboard() {
     $('#statPollutionEvents').textContent = Number(summary.pollution_events.total).toLocaleString();
     $('#statSuspiciousShips').textContent = Number(summary.suspicious_ships.total).toLocaleString();
     $('#statWarnings').textContent = Number(summary.warnings.total).toLocaleString();
+    updateDashboardVisuals(summary);
   } catch (error) {
     console.error(error);
   }
@@ -423,6 +562,18 @@ function startAutoRefresh() {
   }, AUTO_REFRESH_MS);
 }
 
+function updateClock() {
+  const now = new Date();
+  setText('#dashboardClock', now.toLocaleTimeString('en-GB', { hour12:false }));
+  setText('#dashboardDate', now.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase());
+}
+
+function startClock() {
+  updateClock();
+  if (clockTimer !== null) clearInterval(clockTimer);
+  clockTimer = setInterval(updateClock, 1000);
+}
+
 function selectedTypes() {
   return [...document.querySelectorAll('.type-filters input:checked')].map(input => input.value);
 }
@@ -430,7 +581,7 @@ function selectedTypes() {
 function applyTypeFilter() {
   const types = selectedTypes();
   const filter = types.length ? ['in', ['get', 'ship_type'], ['literal', types]] : ['==', 1, 0];
-  ['vessel-selection', 'vessels', 'vessel-labels'].forEach(id => map.setFilter(id, filter));
+  ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'].forEach(id => map.setFilter(id, filter));
   const visible = vesselData.features.filter(feature => types.includes(feature.properties.ship_type)).length;
   $('#totalShips').textContent = visible.toLocaleString();
 }
@@ -560,11 +711,15 @@ function bindControls() {
   });
   $('#collapseControl').addEventListener('click', () => {
     $('.control-panel').classList.add('collapsed');
+    $('.dashboard-grid').classList.add('left-collapsed');
     $('#openControl').classList.add('visible');
+    setTimeout(() => map.resize(), 240);
   });
   $('#openControl').addEventListener('click', () => {
     $('.control-panel').classList.remove('collapsed');
+    $('.dashboard-grid').classList.remove('left-collapsed');
     $('#openControl').classList.remove('visible');
+    setTimeout(() => map.resize(), 240);
   });
   $('#detailClose').addEventListener('click', () => detailPanel.classList.remove('visible'));
   $('#showTrackButton').addEventListener('click', showSelectedTrack);
@@ -590,6 +745,9 @@ function initMap() {
   map.on('mousemove', event => {
     $('#mouseCoordinates').textContent = `${event.lngLat.lat.toFixed(4)}° N, ${event.lngLat.lng.toFixed(4)}° E`;
   });
+  map.on('zoom', () => {
+    setText('#mapZoom', `Z ${map.getZoom().toFixed(1)}`);
+  });
   map.on('load', async () => {
     registerShipImages();
     addOperationalLayers();
@@ -606,6 +764,8 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('beforeunload', () => {
   if (refreshTimer !== null) clearInterval(refreshTimer);
+  if (clockTimer !== null) clearInterval(clockTimer);
 });
 
+startClock();
 initMap();
