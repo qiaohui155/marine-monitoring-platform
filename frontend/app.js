@@ -1,6 +1,11 @@
 const API_BASE = 'http://127.0.0.1:8000';
 const AUTO_REFRESH_MS = 15000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
+const BASEMAP_LAYERS = {
+  operations: 'osm',
+  street: 'osm-color',
+  satellite: 'satellite'
+};
 const TYPE_COLORS = {
   Overview: '#ffd84d',
   Cargo: '#e15d65',
@@ -27,6 +32,9 @@ let operationalRefreshRunning = false;
 let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
+const requestedBasemap = new URLSearchParams(window.location.search).get('basemap');
+let activeBasemap = requestedBasemap || localStorage.getItem('oman-basemap') || 'operations';
+if (!BASEMAP_LAYERS[activeBasemap]) activeBasemap = 'operations';
 
 const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
@@ -51,21 +59,56 @@ function rasterStyle() {
         tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
         tileSize: 256,
         attribution: '© OpenStreetMap contributors'
+      },
+      satellite: {
+        type: 'raster',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: 'Tiles © Esri, Maxar, Earthstar Geographics'
       }
     },
-    layers: [{
-      id: 'osm',
-      type: 'raster',
-      source: 'osm',
-      minzoom: 0,
-      maxzoom: 19,
-      paint: {
-        'raster-saturation': -1,
-        'raster-contrast': .18,
-        'raster-brightness-min': .03,
-        'raster-brightness-max': .56
+    layers: [
+      {
+        id: 'osm',
+        type: 'raster',
+        source: 'osm',
+        minzoom: 0,
+        maxzoom: 19,
+        layout: { visibility: activeBasemap === 'operations' ? 'visible' : 'none' },
+        paint: {
+          'raster-saturation': -1,
+          'raster-contrast': .18,
+          'raster-brightness-min': .03,
+          'raster-brightness-max': .56
+        }
+      },
+      {
+        id: 'osm-color',
+        type: 'raster',
+        source: 'osm',
+        minzoom: 0,
+        maxzoom: 19,
+        layout: { visibility: activeBasemap === 'street' ? 'visible' : 'none' },
+        paint: {
+          'raster-saturation': -.08,
+          'raster-contrast': .05,
+          'raster-brightness-max': .88
+        }
+      },
+      {
+        id: 'satellite',
+        type: 'raster',
+        source: 'satellite',
+        minzoom: 0,
+        maxzoom: 19,
+        layout: { visibility: activeBasemap === 'satellite' ? 'visible' : 'none' },
+        paint: {
+          'raster-saturation': -.15,
+          'raster-contrast': .12,
+          'raster-brightness-max': .78
+        }
       }
-    }]
+    ]
   };
 }
 
@@ -716,6 +759,33 @@ function showSelectedTrack() {
   showMessage(`Showing historical track for ${track.properties.ship_name || selectedMmsi}`);
 }
 
+function syncBasemapControls() {
+  document.querySelectorAll('.basemap-option').forEach(button => {
+    button.classList.toggle('active', button.dataset.basemap === activeBasemap);
+  });
+}
+
+function closeBasemapMenu() {
+  $('#basemapMenu').classList.remove('visible');
+  $('#basemapButton').classList.remove('active');
+  $('#basemapButton').setAttribute('aria-expanded', 'false');
+}
+
+function setBasemap(name) {
+  if (!BASEMAP_LAYERS[name]) return;
+  activeBasemap = name;
+  Object.entries(BASEMAP_LAYERS).forEach(([key, layerId]) => {
+    if (map.getLayer(layerId)) {
+      map.setLayoutProperty(layerId, 'visibility', key === name ? 'visible' : 'none');
+    }
+  });
+  localStorage.setItem('oman-basemap', name);
+  syncBasemapControls();
+  closeBasemapMenu();
+  const label = document.querySelector(`.basemap-option[data-basemap="${name}"] b`)?.textContent || name;
+  showMessage(`${label} basemap selected`);
+}
+
 function bindControls() {
   if (controlsBound) return;
   controlsBound = true;
@@ -728,6 +798,20 @@ function bindControls() {
       map.setLayoutProperty('vessel-labels', 'visibility', labelsVisible ? 'visible' : 'none');
     }
     event.currentTarget.classList.toggle('active', labelsVisible);
+  });
+  syncBasemapControls();
+  $('#basemapButton').addEventListener('click', event => {
+    event.stopPropagation();
+    const menu = $('#basemapMenu');
+    const isOpen = menu.classList.toggle('visible');
+    event.currentTarget.classList.toggle('active', isOpen);
+    event.currentTarget.setAttribute('aria-expanded', String(isOpen));
+  });
+  document.querySelectorAll('.basemap-option').forEach(button => {
+    button.addEventListener('click', () => setBasemap(button.dataset.basemap));
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('#basemapMenu') && !event.target.closest('#basemapButton')) closeBasemapMenu();
   });
   document.querySelectorAll('.type-filters input').forEach(input => input.addEventListener('change', applyTypeFilter));
   $('#resetFilters').addEventListener('click', () => {

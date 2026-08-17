@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260817-oman-clock" />
+  <link rel="stylesheet" href="styles.css?v=20260817-basemap-switch" />
 </head>
 <body>
   <main class="platform-shell">
@@ -152,7 +152,23 @@
               <button id="zoomIn" title="Zoom in">+</button>
               <button id="zoomOut" title="Zoom out">−</button>
               <button id="toggleLabels" class="active" title="Toggle ship labels">Aa</button>
+              <button id="basemapButton" title="Change basemap" aria-expanded="false" aria-controls="basemapMenu">
+                <svg viewBox="0 0 24 24"><path d="M12 3L3 8l9 5 9-5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg>
+              </button>
             </aside>
+
+            <div class="basemap-menu" id="basemapMenu" aria-label="Basemap selection">
+              <span>BASEMAP</span>
+              <button type="button" class="basemap-option active" data-basemap="operations">
+                <i class="operations"></i><b>Operations</b><small>Dark analytical map</small>
+              </button>
+              <button type="button" class="basemap-option" data-basemap="street">
+                <i class="street"></i><b>Standard Map</b><small>Full-colour reference</small>
+              </button>
+              <button type="button" class="basemap-option" data-basemap="satellite">
+                <i class="satellite"></i><b>Satellite</b><small>World imagery</small>
+              </button>
+            </div>
 
             <div class="map-live-badge"><i></i><span>LIVE MAP</span><b id="mapZoom">Z 5.3</b></div>
             <button class="open-control" id="openControl" aria-label="Open vessel controls">☰</button>
@@ -269,6 +285,6 @@
   </main>
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-  <script src="app.js?v=20260817-oman-clock"></script>
+  <script src="app.js?v=20260817-basemap-switch"></script>
 </body>
 </html>
