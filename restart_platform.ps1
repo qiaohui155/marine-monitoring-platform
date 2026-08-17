@@ -9,7 +9,9 @@ function Stop-PlatformService {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$ExpectedCommand,
-        [Parameter(Mandatory = $true)][string]$ServiceName
+        [Parameter(Mandatory = $true)][string]$ServiceName,
+        [Parameter(Mandatory = $true)][string]$ValidationUrl,
+        [Parameter(Mandatory = $true)][string]$ValidationPattern
     )
 
     $Listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
@@ -18,25 +20,51 @@ function Stop-PlatformService {
         return
     }
 
-    $ProcessIds = @($Listeners | Select-Object -ExpandProperty OwningProcess -Unique)
-    foreach ($ProcessId in $ProcessIds) {
+    $ListenerProcessIds = @($Listeners | Select-Object -ExpandProperty OwningProcess -Unique)
+    $ProcessIdsToStop = [System.Collections.Generic.HashSet[int]]::new()
+    foreach ($ProcessId in $ListenerProcessIds) {
         $ProcessInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId"
         if ($null -eq $ProcessInfo) {
             continue
         }
 
         $CommandLine = [string]$ProcessInfo.CommandLine
-        $IsProjectPython = [string]::Equals(
-            [string]$ProcessInfo.ExecutablePath,
-            $Python,
-            [System.StringComparison]::OrdinalIgnoreCase
-        )
-        if (-not $IsProjectPython -or $CommandLine -notmatch $ExpectedCommand) {
+        if ($ProcessInfo.Name -ne 'python.exe' -or $CommandLine -notmatch $ExpectedCommand) {
             throw "Port $Port is occupied by another program. It was not stopped for safety."
         }
 
+        try {
+            $ValidationResponse = Invoke-WebRequest `
+                -Uri $ValidationUrl `
+                -UseBasicParsing `
+                -TimeoutSec 3
+            if ([string]$ValidationResponse.Content -notmatch $ValidationPattern) {
+                throw 'Platform marker was not found.'
+            }
+        }
+        catch {
+            throw "Port $Port did not return the expected $ServiceName response. It was not stopped for safety."
+        }
+
+        [void]$ProcessIdsToStop.Add([int]$ProcessId)
+
+        # A Windows virtual environment may use a small python launcher which
+        # starts the real interpreter as a child process. Stop both members of
+        # that pair so the listening child cannot remain behind.
+        $ParentProcessInfo = Get-CimInstance Win32_Process `
+            -Filter "ProcessId = $($ProcessInfo.ParentProcessId)"
+        if (
+            $null -ne $ParentProcessInfo -and
+            $ParentProcessInfo.Name -eq 'python.exe' -and
+            [string]$ParentProcessInfo.CommandLine -match $ExpectedCommand
+        ) {
+            [void]$ProcessIdsToStop.Add([int]$ParentProcessInfo.ProcessId)
+        }
+    }
+
+    foreach ($ProcessId in $ProcessIdsToStop) {
         Write-Host "Stopping $ServiceName process $ProcessId..."
-        Stop-Process -Id $ProcessId -Force
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
     }
 
     $Timer = [System.Diagnostics.Stopwatch]::StartNew()
@@ -58,10 +86,20 @@ if (-not (Test-Path -LiteralPath $StartScript)) {
 }
 
 Write-Host '[1/3] Stopping the existing backend API...'
-Stop-PlatformService -Port 8000 -ExpectedCommand 'uvicorn.*app\.main:app' -ServiceName 'Backend API'
+Stop-PlatformService `
+    -Port 8000 `
+    -ExpectedCommand 'uvicorn.*app\.main:app' `
+    -ServiceName 'Backend API' `
+    -ValidationUrl 'http://127.0.0.1:8000/openapi.json' `
+    -ValidationPattern 'Oman Marine Monitoring API'
 
 Write-Host '[2/3] Stopping the existing frontend service...'
-Stop-PlatformService -Port 5173 -ExpectedCommand 'http\.server.*5173' -ServiceName 'Frontend service'
+Stop-PlatformService `
+    -Port 5173 `
+    -ExpectedCommand 'http\.server.*5173' `
+    -ServiceName 'Frontend service' `
+    -ValidationUrl 'http://127.0.0.1:5173/' `
+    -ValidationPattern 'Oman Marine Intelligence Center'
 
 Write-Host '[3/3] Starting the platform with the current configuration...'
 & $StartScript
