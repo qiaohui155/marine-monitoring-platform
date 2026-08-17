@@ -24,6 +24,9 @@ let refreshTimer = null;
 let clockTimer = null;
 let vesselRefreshRunning = false;
 let operationalRefreshRunning = false;
+let mapLayersReady = false;
+let mapLayersInitializing = false;
+let controlsBound = false;
 
 const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
@@ -331,6 +334,19 @@ function formatDate(value) {
   return date.toLocaleString('en-GB', { month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit' });
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') throw new Error('API request timed out');
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function numberValue(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
@@ -477,13 +493,16 @@ async function loadVessels({ initial = false } = {}) {
   if (vesselRefreshRunning) return;
   vesselRefreshRunning = true;
   try {
-    const response = await fetch(`${API_BASE}/api/ships?limit=5000`, { cache: 'no-store' });
+    const response = await fetchWithTimeout(`${API_BASE}/api/ships?limit=5000`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     vesselData = await response.json();
-    map.getSource('vessels').setData(vesselData);
+    const vesselSource = map?.getSource('vessels');
+    if (vesselSource) vesselSource.setData(vesselData);
     updateSummary(vesselData);
-    applyTypeFilter();
-    refreshSelectedVessel();
+    if (mapLayersReady) {
+      applyTypeFilter();
+      refreshSelectedVessel();
+    }
     setConnection('connected', 'Live · 15 s');
     updateRefreshStatus(`Last refresh: ${new Date().toLocaleTimeString()} · every 15 s`);
     loadingScreen.classList.add('hidden');
@@ -503,7 +522,7 @@ async function loadVessels({ initial = false } = {}) {
 }
 
 async function fetchGeoJson(path) {
-  const response = await fetch(`${API_BASE}${path}`, { cache: 'no-store' });
+  const response = await fetchWithTimeout(`${API_BASE}${path}`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return response.json();
 }
@@ -519,11 +538,13 @@ async function loadOperationalLayers({ initial = false } = {}) {
       fetchGeoJson('/api/suspicious-ships?limit=1000'),
       fetchGeoJson('/api/warnings?limit=1000')
     ]);
-    map.getSource('tracks').setData(trackData);
-    map.getSource('pollution').setData(pollutionData);
-    map.getSource('risk-areas').setData(riskData);
-    map.getSource('suspicious').setData(suspiciousData);
-    map.getSource('warnings').setData(warningData);
+    if (mapLayersReady) {
+      map.getSource('tracks')?.setData(trackData);
+      map.getSource('pollution')?.setData(pollutionData);
+      map.getSource('risk-areas')?.setData(riskData);
+      map.getSource('suspicious')?.setData(suspiciousData);
+      map.getSource('warnings')?.setData(warningData);
+    }
   } catch (error) {
     if (!initial) showMessage('One or more operational layers could not be refreshed');
     console.error(error);
@@ -534,7 +555,7 @@ async function loadOperationalLayers({ initial = false } = {}) {
 
 async function loadDashboard() {
   try {
-    const response = await fetch(`${API_BASE}/api/dashboard/summary`, { cache: 'no-store' });
+    const response = await fetchWithTimeout(`${API_BASE}/api/dashboard/summary`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Dashboard returned ${response.status}`);
     const summary = await response.json();
     $('#statTrackVessels').textContent = Number(summary.tracks.vessels).toLocaleString();
@@ -581,7 +602,9 @@ function selectedTypes() {
 function applyTypeFilter() {
   const types = selectedTypes();
   const filter = types.length ? ['in', ['get', 'ship_type'], ['literal', types]] : ['==', 1, 0];
-  ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'].forEach(id => map.setFilter(id, filter));
+  ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'].forEach(id => {
+    if (map?.getLayer(id)) map.setFilter(id, filter);
+  });
   const visible = vesselData.features.filter(feature => types.includes(feature.properties.ship_type)).length;
   $('#totalShips').textContent = visible.toLocaleString();
 }
@@ -591,9 +614,13 @@ function setText(selector, value) {
 }
 
 function selectVessel(feature) {
-  if (selectedFeatureId !== null) map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:false });
+  if (selectedFeatureId !== null && map?.getSource('vessels')) {
+    map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:false });
+  }
   selectedFeatureId = feature.id ?? feature.properties.id;
-  map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:true });
+  if (map?.getSource('vessels')) {
+    map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:true });
+  }
   const p = feature.properties;
   selectedMmsi = p.mmsi || null;
   const [lng, lat] = feature.geometry.coordinates;
@@ -613,7 +640,7 @@ function selectVessel(feature) {
 }
 
 async function searchVessel(query) {
-  const response = await fetch(`${API_BASE}/api/ships?search=${encodeURIComponent(query)}&limit=20`);
+  const response = await fetchWithTimeout(`${API_BASE}/api/ships?search=${encodeURIComponent(query)}&limit=20`);
   if (!response.ok) throw new Error('Search failed');
   const result = await response.json();
   if (!result.features.length) return showMessage('No matching vessel found');
@@ -648,7 +675,7 @@ function activateView(view) {
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', false);
     setLayerToggle('#warningLayerToggle', 'warnings', false);
   } else if (view === 'tracks') {
-    map.setFilter('track-lines', null);
+    if (map.getLayer('track-lines')) map.setFilter('track-lines', null);
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', true);
     setLayerToggle('#pollutionLayerToggle', 'pollution', false);
@@ -674,6 +701,7 @@ function showSelectedTrack() {
     tab.classList.toggle('active', tab.dataset.view === 'tracks');
   });
   setLayerToggle('#trackLayerToggle', 'tracks', true);
+  if (!map.getLayer('track-lines')) return showMessage('The map layers are still loading');
   map.setFilter('track-lines', ['==', ['get', 'mmsi'], selectedMmsi]);
   const bounds = new maplibregl.LngLatBounds();
   track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
@@ -682,12 +710,16 @@ function showSelectedTrack() {
 }
 
 function bindControls() {
+  if (controlsBound) return;
+  controlsBound = true;
   $('#homeMap').addEventListener('click', () => map.flyTo({ ...HOME, speed:1.1 }));
   $('#zoomIn').addEventListener('click', () => map.zoomIn());
   $('#zoomOut').addEventListener('click', () => map.zoomOut());
   $('#toggleLabels').addEventListener('click', event => {
     labelsVisible = !labelsVisible;
-    map.setLayoutProperty('vessel-labels', 'visibility', labelsVisible ? 'visible' : 'none');
+    if (map.getLayer('vessel-labels')) {
+      map.setLayoutProperty('vessel-labels', 'visibility', labelsVisible ? 'visible' : 'none');
+    }
     event.currentTarget.classList.toggle('active', labelsVisible);
   });
   document.querySelectorAll('.type-filters input').forEach(input => input.addEventListener('change', applyTypeFilter));
@@ -699,7 +731,7 @@ function bindControls() {
     setLayerGroupVisibility('vessels', event.currentTarget.checked);
   });
   $('#trackLayerToggle').addEventListener('change', event => {
-    if (event.currentTarget.checked) map.setFilter('track-lines', null);
+    if (event.currentTarget.checked && map.getLayer('track-lines')) map.setFilter('track-lines', null);
     setLayerGroupVisibility('tracks', event.currentTarget.checked);
   });
   $('#pollutionLayerToggle').addEventListener('change', event => setLayerGroupVisibility('pollution', event.currentTarget.checked));
@@ -730,6 +762,25 @@ function bindControls() {
   });
 }
 
+function initializeMapLayers() {
+  if (mapLayersReady || mapLayersInitializing) return;
+  const style = map.getStyle();
+  if (!style?.layers?.some(layer => layer.id === 'osm')) return;
+
+  mapLayersInitializing = true;
+  try {
+    registerShipImages();
+    addOperationalLayers();
+    addVesselLayers();
+    mapLayersReady = true;
+    applyTypeFilter();
+  } catch (error) {
+    console.error('Unable to initialize business map layers', error);
+  } finally {
+    mapLayersInitializing = false;
+  }
+}
+
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
@@ -748,14 +799,14 @@ function initMap() {
   map.on('zoom', () => {
     setText('#mapZoom', `Z ${map.getZoom().toFixed(1)}`);
   });
-  map.on('load', async () => {
-    registerShipImages();
-    addOperationalLayers();
-    addVesselLayers();
-    bindControls();
-    await refreshPlatformData({ initial: true });
-    startAutoRefresh();
-  });
+  bindControls();
+
+  map.on('styledata', initializeMapLayers);
+  map.once('style.load', initializeMapLayers);
+
+  // Business data is local and must not wait for external basemap tiles.
+  refreshPlatformData({ initial: true });
+  startAutoRefresh();
 }
 
 document.addEventListener('visibilitychange', () => {
