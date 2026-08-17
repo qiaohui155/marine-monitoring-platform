@@ -587,6 +587,13 @@ function updateClock() {
   const now = new Date();
   setText('#dashboardClock', now.toLocaleTimeString('en-GB', { hour12:false }));
   setText('#dashboardDate', now.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase());
+  setText('#omanClock', now.toLocaleTimeString('en-GB', { hour12:false, timeZone:'Asia/Muscat' }));
+  setText('#omanDate', now.toLocaleDateString('en-GB', {
+    day:'2-digit',
+    month:'short',
+    year:'numeric',
+    timeZone:'Asia/Muscat'
+  }).toUpperCase());
 }
 
 function startClock() {

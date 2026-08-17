@@ -33,7 +33,18 @@
 
       <div class="header-status">
         <div class="connection-pill" id="connectionPill"><i></i><span>Connecting API</span></div>
-        <div class="header-clock"><strong id="dashboardClock">--:--:--</strong><span id="dashboardDate">LOCAL TIME</span></div>
+        <div class="clock-group" aria-label="Platform clocks">
+          <div class="header-clock">
+            <small>LOCAL TIME</small>
+            <strong id="dashboardClock">--:--:--</strong>
+            <span id="dashboardDate">-- --- ----</span>
+          </div>
+          <div class="header-clock oman-clock">
+            <small>OMAN · UTC+4</small>
+            <strong id="omanClock">--:--:--</strong>
+            <span id="omanDate">-- --- ----</span>
+          </div>
+        </div>
         <button class="user-avatar" aria-label="Operator profile">OM</button>
       </div>
     </header>
