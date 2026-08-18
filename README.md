@@ -8,7 +8,8 @@ and optional ShipXY AIS collection.
 - `frontend/` - browser-based vessel and pollution map
 - `backend/` - read-only HTTP API plus optional AIS collector
 - `database/` - versioned schema, simulation seeds, and migrations
-- `start_platform.bat` - starts the API and frontend locally
+- `start_platform.bat` - starts the API, optional live AIS collector, and frontend
+- `restart_platform.bat` - safely restarts all local platform services
 
 ## Local startup
 
@@ -16,8 +17,9 @@ and optional ShipXY AIS collection.
 2. Double-click `start_platform.bat`.
 3. Open `http://127.0.0.1:5173`.
 
-Real AIS collection is separate. Configure it with
-`backend/configure_shipxy.bat`, then run `backend/start_shipxy_ingest.bat`.
+To start real AIS collection with the platform, configure ShipXY locally and set
+`SHIPXY_AUTO_START=true` plus `SHIPXY_TARGET_DB=<live database>` in `backend/.env`.
+Only new coordinates received from the provider are animated on the map.
 
 ## Security
 

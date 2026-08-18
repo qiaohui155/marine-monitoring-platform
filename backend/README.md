@@ -1,6 +1,8 @@
-# Oman Marine Monitoring API - read-only PostGIS service
+# Oman Marine Monitoring API and AIS collector
 
-This backend uses the existing `Oman_Oil_Monitor` PostgreSQL/PostGIS database. It does not modify database data.
+This backend connects to the PostgreSQL/PostGIS database selected by `DB_NAME` in
+the local `.env`. HTTP endpoints are read-only; the optional AIS collector writes
+new reports only when live collection is enabled.
 
 ## Confirmed source
 
@@ -36,8 +38,8 @@ This backend uses the existing `Oman_Oil_Monitor` PostgreSQL/PostGIS database. I
 - `GET /api/dashboard/summary`
 
 The HTTP API is read-only. Map layers are returned as GeoJSON and are sourced from
-PostGIS. A separate optional ShipXY collector can update real vessel positions and
-append their historical track points.
+PostGIS. The optional ShipXY collector can update real vessel positions and append
+historical track points when that table is available.
 
 ## Optional real ShipXY AIS collection
 
@@ -45,11 +47,15 @@ append their historical track points.
 2. Double-click `configure_shipxy.bat`, then enter a ShipXY API key and one or more
    MMSI numbers separated by commas. Press Enter at the MMSI prompt to use `357867000`.
    The secret is stored only in the local `.env`.
-3. Double-click `start_shipxy_ingest.bat` and keep that window open while collecting.
-4. Close the collector window or press Ctrl+C to stop it.
+3. Set `SHIPXY_AUTO_START=true` and `SHIPXY_TARGET_DB` to the live AIS database in
+   the local `.env` file.
+4. Start or restart the platform. The collector runs in the background and writes
+   logs under `backend/logs/`.
 
-For each queried MMSI, the collector updates the latest row in `ship_position` and
-adds filtered historical points to `ship_track`. The existing `ship_track_lines`
-view and frontend will therefore reflect new database data automatically. The
-collector is deliberately separate from `start_platform.bat` so opening the map
-does not unexpectedly consume ShipXY API quota.
+For each queried MMSI, the collector updates a writable `ship_position` table or
+appends the report to `ais_position` when `ship_position` is a compatibility view.
+The target-database guard prevents real AIS collection from accidentally writing
+into another configured database. Set `SHIPXY_AUTO_START=false` to stop automatic
+collection and avoid consuming ShipXY API quota. When ShipXY rejects a request or
+the network fails, the collector automatically increases the retry interval up to
+`SHIPXY_MAX_BACKOFF_SECONDS` instead of repeatedly consuming requests every 15 seconds.

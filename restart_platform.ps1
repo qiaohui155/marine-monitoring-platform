@@ -5,6 +5,23 @@ $BackendDirectory = Join-Path $PlatformDirectory 'backend'
 $Python = Join-Path $BackendDirectory '.venv\Scripts\python.exe'
 $StartScript = Join-Path $PlatformDirectory 'start_platform.ps1'
 
+function Stop-ShipxyCollector {
+    $CollectorProcesses = @(Get-CimInstance Win32_Process | Where-Object {
+        $_.Name -eq 'python.exe' -and
+        [string]$_.CommandLine -match '(?:-m\s+app\.shipxy_ingest|app[\\/]shipxy_ingest\.py)'
+    })
+    if ($CollectorProcesses.Count -eq 0) {
+        Write-Host '[OK] Live AIS collector is not running.' -ForegroundColor DarkGray
+        return
+    }
+
+    foreach ($CollectorProcess in $CollectorProcesses) {
+        Write-Host "Stopping Live AIS collector process $($CollectorProcess.ProcessId)..."
+        Stop-Process -Id $CollectorProcess.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host '[OK] Live AIS collector stopped.' -ForegroundColor Green
+}
+
 function Stop-PlatformService {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
@@ -85,7 +102,10 @@ if (-not (Test-Path -LiteralPath $StartScript)) {
     throw 'start_platform.ps1 is missing.'
 }
 
-Write-Host '[1/3] Stopping the existing backend API...'
+Write-Host '[1/4] Stopping the live AIS collector...'
+Stop-ShipxyCollector
+
+Write-Host '[2/4] Stopping the existing backend API...'
 Stop-PlatformService `
     -Port 8000 `
     -ExpectedCommand 'uvicorn.*app\.main:app' `
@@ -93,7 +113,7 @@ Stop-PlatformService `
     -ValidationUrl 'http://127.0.0.1:8000/openapi.json' `
     -ValidationPattern 'Oman Marine Monitoring API'
 
-Write-Host '[2/3] Stopping the existing frontend service...'
+Write-Host '[3/4] Stopping the existing frontend service...'
 Stop-PlatformService `
     -Port 5173 `
     -ExpectedCommand 'http\.server.*5173' `
@@ -101,5 +121,5 @@ Stop-PlatformService `
     -ValidationUrl 'http://127.0.0.1:5173/' `
     -ValidationPattern 'Oman Marine Intelligence Center'
 
-Write-Host '[3/3] Starting the platform with the current configuration...'
+Write-Host '[4/4] Starting the platform with the current configuration...'
 & $StartScript

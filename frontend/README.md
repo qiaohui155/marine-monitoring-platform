@@ -12,6 +12,7 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Pollution events, sea-risk areas, suspected vessels, and warning areas
 - Dynamic dashboard statistics, risk signals, incident status, and recent events
 - Automatic API refresh every 15 seconds
+- Smooth movement from the previous real AIS coordinate to each newly received coordinate
 
 ## Main files
 

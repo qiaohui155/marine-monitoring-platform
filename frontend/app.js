@@ -1,5 +1,7 @@
 const API_BASE = 'http://127.0.0.1:8000';
 const AUTO_REFRESH_MS = 15000;
+const VESSEL_ANIMATION_MS = 6000;
+const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const BASEMAP_LAYERS = {
   operations: 'osm',
@@ -17,6 +19,7 @@ const TYPE_COLORS = {
 
 let map;
 let vesselData = { type: 'FeatureCollection', features: [] };
+let renderedVesselData = { type: 'FeatureCollection', features: [] };
 let trackData = { type: 'FeatureCollection', features: [] };
 let pollutionData = { type: 'FeatureCollection', features: [] };
 let riskData = { type: 'FeatureCollection', features: [] };
@@ -29,6 +32,7 @@ let refreshTimer = null;
 let clockTimer = null;
 let vesselRefreshRunning = false;
 let operationalRefreshRunning = false;
+let vesselAnimationFrame = null;
 let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
@@ -285,7 +289,7 @@ function addOperationalLayers() {
 }
 
 function addVesselLayers() {
-  map.addSource('vessels', { type: 'geojson', data: vesselData, promoteId: 'id' });
+  map.addSource('vessels', { type: 'geojson', data: vesselData, promoteId: 'mmsi' });
   map.addLayer({
     id: 'vessel-selection',
     type: 'circle',
@@ -519,11 +523,10 @@ function updateRefreshStatus(message) {
 }
 
 function refreshSelectedVessel() {
-  if (selectedFeatureId === null) return;
-  const selected = vesselData.features.find(feature => {
-    const featureId = feature.id ?? feature.properties.id;
-    return String(featureId) === String(selectedFeatureId);
-  });
+  if (selectedMmsi === null) return;
+  const selected = vesselData.features.find(
+    feature => String(feature.properties.mmsi) === String(selectedMmsi)
+  );
   if (selected) {
     selectVessel(selected);
   } else {
@@ -532,21 +535,117 @@ function refreshSelectedVessel() {
   }
 }
 
+function latestVesselUpdateMs(collection) {
+  const timestamps = (collection.features || [])
+    .map(feature => Date.parse(feature.properties?.update_time))
+    .filter(Number.isFinite);
+  return timestamps.length ? Math.max(...timestamps) : null;
+}
+
+function cloneVesselCollection(collection) {
+  return {
+    ...collection,
+    features: (collection.features || []).map(feature => ({
+      ...feature,
+      properties: { ...feature.properties },
+      geometry: {
+        ...feature.geometry,
+        coordinates: [...feature.geometry.coordinates]
+      }
+    }))
+  };
+}
+
+function vesselKey(feature) {
+  return String(feature.properties?.mmsi ?? feature.id ?? feature.properties?.id ?? '');
+}
+
+function setRenderedVessels(collection) {
+  renderedVesselData = cloneVesselCollection(collection);
+  map?.getSource('vessels')?.setData(renderedVesselData);
+}
+
+function animateVesselUpdate(nextCollection, { initial = false } = {}) {
+  if (vesselAnimationFrame !== null) {
+    cancelAnimationFrame(vesselAnimationFrame);
+    vesselAnimationFrame = null;
+  }
+
+  const vesselSource = map?.getSource('vessels');
+  if (initial || !vesselSource || renderedVesselData.features.length === 0) {
+    setRenderedVessels(nextCollection);
+    return;
+  }
+
+  const previousByKey = new Map(
+    renderedVesselData.features.map(feature => [vesselKey(feature), feature])
+  );
+  const animatedCollection = cloneVesselCollection(nextCollection);
+  const movements = [];
+
+  animatedCollection.features.forEach((feature, index) => {
+    const previous = previousByKey.get(vesselKey(feature));
+    if (!previous) return;
+    const start = previous.geometry?.coordinates;
+    const target = feature.geometry?.coordinates;
+    if (
+      !Array.isArray(start) || !Array.isArray(target) ||
+      !start.every(Number.isFinite) || !target.every(Number.isFinite) ||
+      (start[0] === target[0] && start[1] === target[1])
+    ) return;
+    movements.push({ index, start: [...start], target: [...target] });
+    feature.geometry.coordinates = [...start];
+  });
+
+  if (movements.length === 0) {
+    setRenderedVessels(nextCollection);
+    return;
+  }
+
+  const startedAt = performance.now();
+  const renderFrame = now => {
+    const progress = Math.min(1, (now - startedAt) / VESSEL_ANIMATION_MS);
+    const eased = progress < .5
+      ? 2 * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    movements.forEach(({ index, start, target }) => {
+      animatedCollection.features[index].geometry.coordinates = [
+        start[0] + (target[0] - start[0]) * eased,
+        start[1] + (target[1] - start[1]) * eased
+      ];
+    });
+    renderedVesselData = animatedCollection;
+    vesselSource.setData(animatedCollection);
+
+    if (progress < 1) {
+      vesselAnimationFrame = requestAnimationFrame(renderFrame);
+    } else {
+      vesselAnimationFrame = null;
+      setRenderedVessels(nextCollection);
+    }
+  };
+  vesselAnimationFrame = requestAnimationFrame(renderFrame);
+}
+
 async function loadVessels({ initial = false } = {}) {
   if (vesselRefreshRunning) return;
   vesselRefreshRunning = true;
   try {
     const response = await fetchWithTimeout(`${API_BASE}/api/ships?limit=5000`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`API returned ${response.status}`);
-    vesselData = await response.json();
-    const vesselSource = map?.getSource('vessels');
-    if (vesselSource) vesselSource.setData(vesselData);
+    const nextVesselData = await response.json();
+    vesselData = nextVesselData;
+    animateVesselUpdate(nextVesselData, { initial });
     updateSummary(vesselData);
     if (mapLayersReady) {
       applyTypeFilter();
       refreshSelectedVessel();
     }
-    setConnection('connected', 'Live · 15 s');
+    const latestUpdateMs = latestVesselUpdateMs(vesselData);
+    const dataIsFresh = latestUpdateMs !== null
+      && Math.abs(Date.now() - latestUpdateMs) <= AIS_FRESHNESS_MS;
+    setConnection(dataIsFresh ? 'connected' : 'stale', dataIsFresh ? 'Live AIS · 15 s' : 'AIS stale · 15 s');
     updateRefreshStatus(`Last refresh: ${new Date().toLocaleTimeString()} · every 15 s`);
     loadingScreen.classList.add('hidden');
   } catch (error) {
@@ -664,15 +763,17 @@ function setText(selector, value) {
 }
 
 function selectVessel(feature) {
+  const p = feature.properties;
   if (selectedFeatureId !== null && map?.getSource('vessels')) {
     map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:false });
   }
-  selectedFeatureId = feature.id ?? feature.properties.id;
+  selectedMmsi = p.mmsi || null;
+  selectedFeatureId = selectedMmsi === null
+    ? feature.id ?? p.id
+    : String(selectedMmsi);
   if (map?.getSource('vessels')) {
     map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:true });
   }
-  const p = feature.properties;
-  selectedMmsi = p.mmsi || null;
   const [lng, lat] = feature.geometry.coordinates;
   setText('#detailName', p.ship_name || 'Unnamed vessel');
   setText('#detailIdentity', `${p.ship_type || 'Unknown type'} · ${p.mmsi || 'No MMSI'}`);
