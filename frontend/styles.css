@@ -109,6 +109,63 @@ svg { display: block; }
 .maplibregl-ctrl-attrib { color: #9db5be; background: rgba(4, 19, 29, .72) !important; }
 .maplibregl-ctrl-attrib a { color: var(--cyan-soft); }
 
+/* Operational feature popups use an explicit light theme so they never inherit
+   the pale dashboard text intended for the dark application shell. */
+.maplibregl-popup { z-index: 1350; }
+.maplibregl-popup-content {
+  min-width: 260px;
+  padding: 0 !important;
+  color: #26384b;
+  background: #fff;
+  border: 1px solid #cfdbe8;
+  border-radius: 5px;
+  box-shadow: 0 12px 30px rgba(24, 45, 72, .24);
+}
+.maplibregl-popup-close-button {
+  top: 7px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  color: #52677f;
+  background: transparent;
+  border-radius: 3px;
+  font-size: 20px;
+  line-height: 26px;
+}
+.maplibregl-popup-close-button:hover { color: #fff; background: #2f76d2; }
+.maplibregl-popup-anchor-top .maplibregl-popup-tip { border-bottom-color: #fff; }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip { border-top-color: #fff; }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: #fff; }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: #fff; }
+.feature-popup { min-width: 230px; padding: 17px 18px 16px; }
+.feature-popup > small {
+  display: block;
+  padding-right: 25px;
+  color: #2f76d2;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.feature-popup > strong {
+  display: block;
+  margin: 6px 25px 13px 0;
+  color: #1e3044;
+  font-size: 16px;
+  line-height: 1.3;
+}
+.feature-popup dl { margin: 0; border-top: 1px solid #e0e7ef; }
+.feature-popup dl > div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #edf1f5;
+}
+.feature-popup dl > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.feature-popup dt { color: #66768a; font-size: 12px; font-weight: 650; }
+.feature-popup dd { margin: 0; color: #2d3c4d; font-size: 13px; font-weight: 550; line-height: 1.4; overflow-wrap: anywhere; }
+
 /* Search */
 .map-search {
   position: absolute; z-index: 600; top: 14px; left: 50%; transform: translateX(-50%);
