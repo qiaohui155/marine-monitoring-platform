@@ -15,6 +15,7 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Smooth movement from the previous real AIS coordinate to each newly received coordinate
 - Full-screen map workspace with compact left and right toolbars
 - Independent floating business panels with drag, minimize, hide, close, multi-window, and viewport-boundary support
+- Unified medium-large blue-and-white business dialogs for modules 01–03, 05–09, and the live statistics summary, with enlarged readable typography
 
 ## Main files
 

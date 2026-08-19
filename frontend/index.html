@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260819-floating-command-center" />
+  <link rel="stylesheet" href="styles.css?v=20260819-large-business-dialogs" />
 </head>
 <body>
   <main class="platform-shell">
@@ -99,10 +99,9 @@
 
       <div class="map-live-badge"><i></i><span>LIVE MAP</span><b id="mapZoom">Z 5.3</b></div>
 
-      <section class="floating-panel" data-floating-panel="vessel-types" data-default-x="76" data-default-y="132" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-01" data-floating-panel="vessel-types" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M3 18h18l-2 3H5l-2-3zM7 18V9h10v9M9 9V5h6v4"/></svg></div>
-          <div><small>01 · FLEET FILTER</small><h2>Vessel Type Distribution</h2></div>
+          <div class="business-dialog-title"><span>01</span><h2>VESSEL TYPE DISTRIBUTION</h2></div>
           <div class="panel-window-controls">
             <button type="button" data-panel-minimize title="Minimize" aria-label="Minimize panel">−</button>
             <button type="button" data-panel-hide title="Hide" aria-label="Hide panel">□</button>
@@ -110,6 +109,7 @@
           </div>
         </header>
         <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Vessel Type Filters</strong><span>Select the vessel categories displayed on the live map.</span></div><em>Changes apply immediately</em></div>
           <div class="type-filters">
             <label><input type="checkbox" value="Cargo" checked><span class="type-name"><i class="cargo"></i>Cargo</span><b id="countCargo">0</b><em><u id="barCargo"></u></em></label>
             <label><input type="checkbox" value="Tanker" checked><span class="type-name"><i class="tanker"></i>Tanker</span><b id="countTanker">0</b><em><u id="barTanker"></u></em></label>
@@ -120,13 +120,13 @@
         </div>
       </section>
 
-      <section class="floating-panel" data-floating-panel="map-layers" data-default-x="92" data-default-y="208" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-02" data-floating-panel="map-layers" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M12 3L3 8l9 5 9-5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg></div>
-          <div><small>02 · OPERATIONAL OVERLAYS</small><h2>Map Layer Control</h2></div>
+          <div class="business-dialog-title"><span>02</span><h2>MAP LAYER CONTROL</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body layer-list">
+          <div class="business-section-intro"><div><strong>Operational Layers</strong><span>Control the spatial information displayed above the selected basemap.</span></div><em>Local PostGIS layers</em></div>
           <label class="layer-switch"><span><i class="layer-dot vessels"></i>Vessel positions</span><input id="vesselLayerToggle" type="checkbox" checked><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot tracks"></i>Historical tracks</span><input id="trackLayerToggle" type="checkbox"><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot pollution"></i>Pollution events</span><input id="pollutionLayerToggle" type="checkbox" checked><em></em></label>
@@ -137,13 +137,14 @@
         </div>
       </section>
 
-      <section class="floating-panel" data-floating-panel="system" data-default-x="108" data-default-y="282" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-03" data-floating-panel="system" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M4 12a8 8 0 0116 0 8 8 0 01-16 0z"/></svg></div>
-          <div><small>03 · DATA PIPELINE</small><h2>System Status</h2></div>
+          <div class="business-dialog-title"><span>03</span><h2>SYSTEM STATUS</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
-        <div class="floating-panel-body system-status-list">
+        <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Service Readiness</strong><span>Current connectivity and refresh information for the local monitoring platform.</span></div><em>Automatic diagnostics</em></div>
+          <div class="system-status-list">
           <div><span><i class="online"></i>PostGIS database</span><b>ONLINE</b></div>
           <div><span><i class="online"></i>FastAPI service</span><b>ONLINE</b></div>
           <div><span><i class="online"></i>AIS refresh cycle</span><b>15 SEC</b></div>
@@ -151,16 +152,17 @@
           <div><span>Affected area</span><b id="affectedArea">—</b></div>
           <div><span>High-risk vessels</span><b id="highRiskShips">—</b></div>
           <div><span>Risk areas</span><b id="statRiskAreas">—</b></div>
+          </div>
         </div>
       </section>
 
-      <section class="floating-panel floating-panel-wide" data-floating-panel="footprint" data-default-x="480" data-default-y="570" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-05" data-floating-panel="footprint" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M7 13c2-5 8-5 10 0-2 5-8 5-10 0z"/></svg></div>
-          <div><small>05 · RECENT EVENT PROFILE</small><h2>Pollution Footprint Comparison</h2></div>
+          <div class="business-dialog-title"><span>05</span><h2>POLLUTION FOOTPRINT</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body chart-panel-body">
+          <div class="business-section-intro"><div><strong>Recent Affected-Area Trend</strong><span>Comparison of reported pollution footprint areas from the incident archive.</span></div><em>Area · km²</em></div>
           <svg id="activityTrend" viewBox="0 0 520 118" preserveAspectRatio="none" aria-label="Recent pollution footprint chart">
             <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#36b9c9" stop-opacity=".32"/><stop offset="1" stop-color="#36b9c9" stop-opacity="0"/></linearGradient></defs>
             <g class="chart-grid"><path d="M0 18H520M0 48H520M0 78H520M0 108H520"/><path d="M40 0V118M160 0V118M280 0V118M400 0V118"/></g>
@@ -197,43 +199,41 @@
         </div>
       </section>
 
-      <section class="floating-panel" data-floating-panel="risk-signals" data-default-x="1450" data-default-y="150" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-07" data-floating-panel="risk-signals" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M12 3L2.5 20h19L12 3z"/><path d="M12 9v5M12 17h.01"/></svg></div>
-          <div><small>07 · RISK INTELLIGENCE</small><h2>Current Risk Signals</h2></div>
-          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
-        </header>
-        <div class="floating-panel-body risk-gauge-wrap">
-          <div class="risk-gauge" id="riskGauge"><div><strong id="riskGaugeValue">0</strong><span>HIGH-RISK<br>SIGNALS</span></div></div>
-          <div class="risk-legend"><div><i class="warning-key"></i><span>Warnings</span><b id="gaugeWarnings">0</b></div><div><i class="suspect-key"></i><span>Suspected</span><b id="gaugeSuspects">0</b></div><div><i class="spill-key"></i><span>Pollution</span><b id="gaugePollution">0</b></div></div>
-        </div>
-      </section>
-
-      <section class="floating-panel" data-floating-panel="incident-status" data-default-x="1420" data-default-y="390" aria-hidden="true">
-        <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M4 18V9M10 18V5M16 18v-7M22 18V3M2 18h21"/></svg></div>
-          <div><small>08 · RESPONSE WORKFLOW</small><h2>Incident Status</h2></div>
-          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
-        </header>
-        <div class="floating-panel-body status-bars" id="eventStatusBars"><div class="empty-row">Waiting for status summary…</div></div>
-      </section>
-
-      <section class="floating-panel" data-floating-panel="operational-watch" data-default-x="1400" data-default-y="610" aria-hidden="true">
-        <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <div><small>09 · MONITORING FOCUS</small><h2>Operational Watch</h2></div>
+          <div class="business-dialog-title"><span>07</span><h2>RISK SIGNALS</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Current Risk Overview</strong><span>Combined warning, suspected-vessel and pollution signals returned by the operational API.</span></div><em>Live assessment</em></div>
+          <div class="risk-gauge-wrap"><div class="risk-gauge" id="riskGauge"><div><strong id="riskGaugeValue">0</strong><span>HIGH-RISK<br>SIGNALS</span></div></div>
+          <div class="risk-legend"><div><i class="warning-key"></i><span>Warnings</span><b id="gaugeWarnings">0</b></div><div><i class="suspect-key"></i><span>Suspected</span><b id="gaugeSuspects">0</b></div><div><i class="spill-key"></i><span>Pollution</span><b id="gaugePollution">0</b></div></div></div>
+        </div>
+      </section>
+
+      <section class="floating-panel business-dialog business-dialog-08" data-floating-panel="incident-status" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>08</span><h2>INCIDENT STATUS</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body"><div class="business-section-intro"><div><strong>Response Workflow</strong><span>Distribution of archived pollution events by current processing status.</span></div><em>Archive summary</em></div><div class="status-bars" id="eventStatusBars"><div class="empty-row">Waiting for status summary…</div></div></div>
+      </section>
+
+      <section class="floating-panel business-dialog business-dialog-09" data-floating-panel="operational-watch" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>09</span><h2>OPERATIONAL WATCH</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Monitoring Focus</strong><span>Quick access to current vessel activity in priority coastal and port areas.</span></div><em>Gulf of Oman</em></div>
           <div class="panel-view-actions"><button type="button" class="view-action active" data-view="vessels">LIVE VESSELS</button><button type="button" class="view-action" data-view="tracks">HISTORICAL TRACKS</button></div>
           <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>SOHAR</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>MUSCAT</span><strong>LIVE</strong><small>Coastal watch</small></article><article><span>DUQM</span><strong>LIVE</strong><small>Offshore watch</small></article></div>
         </div>
       </section>
 
-      <section class="floating-panel floating-panel-wide" data-floating-panel="live-summary" data-default-x="760" data-default-y="160" aria-hidden="true">
+      <section class="floating-panel business-dialog business-dialog-summary" data-floating-panel="live-summary" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V3M2 19h21"/></svg></div>
-          <div><small>LIVE DATABASE OVERVIEW</small><h2>Real-Time Statistics Summary</h2></div>
+          <div class="business-dialog-title"><span>LIVE</span><h2>REAL-TIME STATISTICS SUMMARY</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
