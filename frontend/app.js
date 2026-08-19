@@ -361,6 +361,14 @@ function addVesselLayers() {
     map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
   });
+
+  map.on('click', event => {
+    const vesselLayers = ['vessels-overview', 'vessels'].filter(layerId => map.getLayer(layerId));
+    const vesselFeatures = vesselLayers.length
+      ? map.queryRenderedFeatures(event.point, { layers: vesselLayers })
+      : [];
+    if (!vesselFeatures.length) clearSelectedVessel();
+  });
 }
 
 function setConnection(status, label) {
@@ -827,6 +835,15 @@ function selectVessel(feature) {
   detailPanel.classList.add('visible');
 }
 
+function clearSelectedVessel() {
+  if (selectedFeatureId !== null && map?.getSource('vessels')) {
+    map.setFeatureState({ source: 'vessels', id: selectedFeatureId }, { selected: false });
+  }
+  selectedFeatureId = null;
+  selectedMmsi = null;
+  detailPanel.classList.remove('visible');
+}
+
 async function searchVessel(query) {
   const response = await fetchWithTimeout(`${API_BASE}/api/ships?search=${encodeURIComponent(query)}&limit=20`);
   if (!response.ok) throw new Error('Search failed');
@@ -937,7 +954,7 @@ function bindControls() {
   $('#homeMap').addEventListener('click', () => map.flyTo({ ...HOME, speed:1.1 }));
   $('#liveMapTool').addEventListener('click', () => {
     floatingPanelManager?.hideAll();
-    detailPanel.classList.remove('visible');
+    clearSelectedVessel();
     activateView('vessels');
     map.flyTo({ ...HOME, speed:1.1 });
     showMessage('Live maritime situation map');
@@ -998,7 +1015,7 @@ function bindControls() {
     activateView('pollution');
     showMessage('Pollution event layers enabled on the map');
   });
-  $('#detailClose').addEventListener('click', () => detailPanel.classList.remove('visible'));
+  $('#detailClose').addEventListener('click', clearSelectedVessel);
   $('#showTrackButton').addEventListener('click', showSelectedTrack);
   $('#searchForm').addEventListener('submit', event => {
     event.preventDefault();
