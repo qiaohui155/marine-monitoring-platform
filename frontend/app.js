@@ -4,9 +4,10 @@ const VESSEL_ANIMATION_MS = 6000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const BASEMAP_LAYERS = {
-  operations: 'osm',
-  street: 'osm-color',
-  satellite: 'satellite'
+  operations: ['osm'],
+  street: ['osm-color'],
+  satellite: ['satellite'],
+  'satellite-hybrid': ['satellite', 'satellite-reference']
 };
 const TYPE_COLORS = {
   Overview: '#ffd84d',
@@ -71,6 +72,12 @@ function rasterStyle() {
         tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
         attribution: 'Tiles © Esri, Maxar, Earthstar Geographics'
+      },
+      'satellite-reference': {
+        type: 'raster',
+        tiles: ['https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: 'Reference tiles © Esri'
       }
     },
     layers: [
@@ -107,12 +114,21 @@ function rasterStyle() {
         source: 'satellite',
         minzoom: 0,
         maxzoom: 19,
-        layout: { visibility: activeBasemap === 'satellite' ? 'visible' : 'none' },
+        layout: { visibility: ['satellite', 'satellite-hybrid'].includes(activeBasemap) ? 'visible' : 'none' },
         paint: {
           'raster-saturation': -.15,
           'raster-contrast': .12,
           'raster-brightness-max': .78
         }
+      },
+      {
+        id: 'satellite-reference',
+        type: 'raster',
+        source: 'satellite-reference',
+        minzoom: 0,
+        maxzoom: 19,
+        layout: { visibility: activeBasemap === 'satellite-hybrid' ? 'visible' : 'none' },
+        paint: { 'raster-opacity': .96 }
       }
     ]
   };
@@ -929,9 +945,11 @@ function closeBasemapMenu() {
 function setBasemap(name) {
   if (!BASEMAP_LAYERS[name]) return;
   activeBasemap = name;
-  Object.entries(BASEMAP_LAYERS).forEach(([key, layerId]) => {
+  const visibleLayerIds = new Set(BASEMAP_LAYERS[name]);
+  const allLayerIds = new Set(Object.values(BASEMAP_LAYERS).flat());
+  allLayerIds.forEach(layerId => {
     if (map.getLayer(layerId)) {
-      map.setLayoutProperty(layerId, 'visibility', key === name ? 'visible' : 'none');
+      map.setLayoutProperty(layerId, 'visibility', visibleLayerIds.has(layerId) ? 'visible' : 'none');
     }
   });
   localStorage.setItem('oman-basemap', name);

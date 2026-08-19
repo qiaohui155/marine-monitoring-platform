@@ -232,6 +232,11 @@ svg { display: block; }
 .basemap-option i.operations { background: linear-gradient(135deg,#163a4d,#071823); }
 .basemap-option i.street { background: linear-gradient(135deg,#dfddcf,#8ab7c3); }
 .basemap-option i.satellite { background: linear-gradient(135deg,#826a43,#225d6a 60%,#0a3044); }
+.basemap-option i.satellite-hybrid {
+  background:
+    linear-gradient(28deg, transparent 45%, rgba(255,255,255,.78) 46% 49%, transparent 50%),
+    linear-gradient(135deg,#826a43,#225d6a 60%,#0a3044);
+}
 .basemap-option b { align-self: end; color: #d9eff1; font-size: 10px; }
 .basemap-option small { color: #7899a4; font-size: 8px; }
 .basemap-option:hover, .basemap-option.active { border-color: var(--cyan-muted); background: rgba(26, 83, 96, .55); }
