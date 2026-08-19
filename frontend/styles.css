@@ -362,3 +362,361 @@ button { color: inherit; }
   .system-panel { display: none; }
   .left-column { grid-template-rows: auto minmax(230px, 1fr); }
 }
+/* ==================================================
+   Soft Ocean Theme — 柔和海洋主题
+   ================================================== */
+
+:root {
+  --bg: #eaf3f5;
+  --bg-soft: #dfecef;
+  --panel: rgba(255, 255, 255, 0.94);
+  --panel-strong: rgba(247, 252, 253, 0.98);
+
+  --cyan: #2d8f9d;
+  --cyan-soft: #5ca8b1;
+  --cyan-dim: rgba(45, 143, 157, 0.12);
+
+  --blue: #4f8fb5;
+  --green: #4ca67f;
+  --lime: #93b95d;
+  --amber: #d99a45;
+  --red: #dc6874;
+  --purple: #8b78b5;
+
+  --text: #24444d;
+  --muted: #6d8990;
+  --line: rgba(80, 145, 155, 0.34);
+  --line-soft: rgba(80, 145, 155, 0.18);
+
+  --shadow:
+    0 5px 18px rgba(62, 102, 110, 0.10),
+    0 1px 3px rgba(62, 102, 110, 0.08);
+}
+
+/* 整体页面背景 */
+body {
+  color: var(--text);
+  background:
+    radial-gradient(
+      circle at 50% 15%,
+      rgba(161, 211, 216, 0.32),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      #edf6f7 0%,
+      #e6f0f2 48%,
+      #dce9ec 100%
+    );
+}
+
+/* 减弱背景网格 */
+.platform-shell::before {
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(85, 145, 154, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(85, 145, 154, 0.05) 1px, transparent 1px);
+}
+
+/* 顶部标题栏 */
+.screen-header {
+  border-bottom-color: rgba(77, 143, 153, 0.34);
+  background: linear-gradient(180deg, #e8f4f5, #d8eaed);
+  box-shadow: 0 5px 18px rgba(61, 104, 113, 0.13);
+}
+
+.screen-header::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    #65aab3,
+    transparent
+  );
+  box-shadow: none;
+}
+
+.brand-mark {
+  border-color: rgba(62, 137, 148, 0.45);
+  background: linear-gradient(
+    145deg,
+    rgba(112, 189, 197, 0.28),
+    rgba(255, 255, 255, 0.65)
+  );
+  box-shadow: none;
+}
+
+.brand-mark svg {
+  stroke: #347e8a;
+}
+
+.header-brand span,
+.title-lockup h1 {
+  color: #287581;
+  text-shadow: none;
+}
+
+.header-brand strong,
+.header-clock strong {
+  color: #24444d;
+}
+
+.title-lockup p,
+.header-clock span,
+.header-clock small {
+  color: #718e95;
+}
+
+.oman-clock strong {
+  color: #2d8490;
+  text-shadow: none;
+}
+
+.user-avatar {
+  border-color: rgba(52, 133, 145, 0.42);
+  color: #2d7681;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+/* 顶部统计卡片 */
+.headline-strip {
+  background: rgba(220, 235, 238, 0.75);
+}
+
+.headline-strip article {
+  border-color: var(--line-soft);
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0.96),
+    rgba(239, 248, 249, 0.95)
+  );
+  box-shadow:
+    inset 3px 0 0 rgba(66, 150, 160, 0.48),
+    0 2px 8px rgba(66, 103, 110, 0.06);
+}
+
+.headline-strip span,
+.headline-strip small {
+  color: #728d93;
+}
+
+.headline-strip strong,
+.headline-strip .latest-card strong {
+  color: #287985;
+  text-shadow: none;
+}
+
+/* 所有功能面板 */
+.data-panel {
+  border-color: var(--line);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.97),
+    rgba(240, 248, 249, 0.96)
+  );
+  box-shadow: var(--shadow);
+}
+
+.panel-heading,
+.map-panel-header {
+  border-bottom-color: var(--line-soft);
+  background: linear-gradient(
+    90deg,
+    rgba(191, 223, 227, 0.54),
+    rgba(244, 250, 251, 0.88)
+  );
+}
+
+.panel-heading h2,
+.map-title h2 {
+  color: #264d56;
+}
+
+.panel-heading small,
+.map-title small,
+.unit-label {
+  color: #718f96;
+}
+
+.panel-index {
+  border-color: rgba(45, 143, 157, 0.52);
+  color: #287d89;
+  background: rgba(108, 180, 189, 0.13);
+}
+
+/* 左侧列表和文字 */
+.type-filters label,
+.layer-switch,
+.system-status-list div,
+.status-bar-row,
+.risk-legend div,
+.recent-event-row {
+  color: #5d7e86;
+}
+
+.type-filters b,
+.system-status-list b,
+.status-bar-row b,
+.risk-legend b,
+.recent-event-row strong {
+  color: #294d55;
+}
+
+.type-filters em,
+.status-bar-row em {
+  background: rgba(82, 143, 152, 0.12);
+}
+
+.text-action {
+  border-color: rgba(45, 143, 157, 0.30);
+  color: #327e89;
+  background: rgba(107, 181, 190, 0.10);
+}
+
+.text-action:hover {
+  color: #ffffff;
+  background: #4f9ca6;
+}
+
+/* 功能标签和搜索框 */
+.nav-tab {
+  color: #6c8b92;
+}
+
+.nav-tab:hover {
+  color: #2f7580;
+}
+
+.nav-tab.active {
+  border-color: rgba(45, 143, 157, 0.38);
+  color: #256d78;
+  background: rgba(100, 176, 185, 0.14);
+}
+
+.search-box {
+  border-color: rgba(58, 135, 146, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.search-box input {
+  color: #284c54;
+}
+
+.search-box input::placeholder {
+  color: #82999e;
+}
+
+.search-box button {
+  color: #ffffff;
+  background: #4d96a1;
+}
+
+/* 地图周围控件 */
+.map-live-badge,
+.map-tools,
+.basemap-menu,
+.open-control {
+  border-color: rgba(57, 137, 148, 0.35);
+  color: #315f68;
+  background: rgba(249, 253, 253, 0.90);
+  box-shadow: 0 4px 12px rgba(55, 94, 102, 0.12);
+}
+
+.map-tools button {
+  color: #527d85;
+  border-bottom-color: rgba(76, 136, 145, 0.15);
+}
+
+.map-tools button:hover,
+.map-tools button.active {
+  color: #286f7a;
+  background: rgba(92, 166, 176, 0.15);
+}
+
+.basemap-option {
+  color: #57777e;
+}
+
+.basemap-option:hover,
+.basemap-option.active {
+  color: #275e68;
+  background: rgba(85, 157, 167, 0.13);
+}
+
+/* 船舶详情弹窗 */
+.detail-panel,
+.maplibregl-popup-content {
+  border-color: rgba(65, 139, 150, 0.38);
+  color: #294d55;
+  background: rgba(249, 253, 253, 0.98) !important;
+  box-shadow: 0 8px 25px rgba(52, 90, 98, 0.18) !important;
+}
+
+.detail-top {
+  color: #24434b;
+  border-bottom-color: rgba(65, 139, 150, 0.20);
+  background: linear-gradient(
+    135deg,
+    rgba(189, 222, 226, 0.92),
+    rgba(239, 248, 249, 0.96)
+  );
+}
+
+.detail-metrics article {
+  background: rgba(237, 247, 248, 0.98);
+}
+
+.detail-metrics strong,
+.detail-list dd,
+.feature-popup strong {
+  color: #274d55;
+}
+
+/* 图表、风险表盘和监控卡片 */
+.trend-dot {
+  fill: #ffffff;
+  stroke: #4b9ca6;
+}
+
+.risk-gauge::before {
+  border-color: rgba(62, 140, 151, 0.25);
+  background: #f4fafb;
+}
+
+.risk-gauge strong {
+  color: #274c55;
+}
+
+.watch-grid {
+  background: rgba(79, 145, 154, 0.14);
+}
+
+.watch-grid article {
+  background: rgba(246, 251, 252, 0.98);
+}
+
+.watch-grid strong {
+  color: #31818c;
+}
+
+/* 加载界面和底部状态栏 */
+.loading-screen {
+  color: #337f8a;
+  background: rgba(235, 246, 247, 0.95);
+}
+
+.loading-screen span {
+  color: #759097;
+}
+
+.map-message {
+  border-color: rgba(57, 135, 146, 0.35);
+  color: #31545c;
+  background: rgba(249, 253, 253, 0.96);
+  box-shadow: 0 5px 14px rgba(52, 88, 95, 0.15);
+}
+
+.statusbar {
+  border-top-color: rgba(65, 135, 145, 0.24);
+  color: #66848b;
+  background: rgba(230, 241, 243, 0.98);
+}
