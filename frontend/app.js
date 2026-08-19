@@ -25,6 +25,7 @@ let pollutionData = { type: 'FeatureCollection', features: [] };
 let riskData = { type: 'FeatureCollection', features: [] };
 let suspiciousData = { type: 'FeatureCollection', features: [] };
 let warningData = { type: 'FeatureCollection', features: [] };
+let recentPollutionEvents = [];
 let labelsVisible = true;
 let selectedFeatureId = null;
 let selectedMmsi = null;
@@ -431,18 +432,53 @@ function renderStatusBars(statusCounts = {}) {
   }).join('');
 }
 
-function renderRecentEvents(events = []) {
+function incidentStatusGroup(value) {
+  const status = String(value || '').toLowerCase();
+  if (/closed|close|completed|resolved|关闭|完成|结束/.test(status)) return 'closed';
+  if (/process|review|pending|处理中|待审核|审核/.test(status)) return 'processing';
+  return 'active';
+}
+
+function applyIncidentFilters() {
   const container = $('#recentEventsList');
   if (!container) return;
-  if (!events.length) {
-    container.innerHTML = '<div class="empty-row">No pollution events in the archive</div>';
+  const statusFilter = $('#incidentStatusFilter')?.value || 'all';
+  const riskFilter = $('#incidentRiskFilter')?.value || 'all';
+  const searchFilter = ($('#incidentSearchFilter')?.value || '').trim().toLowerCase();
+
+  const filtered = recentPollutionEvents.filter(event => {
+    const status = incidentStatusGroup(event.status);
+    const risk = String(event.risk_level || event.level || '').toLowerCase();
+    const searchable = `${event.event_id || ''} ${event.status || ''} ${event.level || ''}`.toLowerCase();
+    return (statusFilter === 'all' || status === statusFilter)
+      && (riskFilter === 'all' || risk.includes(riskFilter))
+      && (!searchFilter || searchable.includes(searchFilter));
+  });
+
+  const activeCount = recentPollutionEvents.filter(event => incidentStatusGroup(event.status) !== 'closed').length;
+  const visibleArea = filtered.reduce((sum, event) => sum + numberValue(event.area_km2), 0);
+  setText('#incidentRecordCount', recentPollutionEvents.length.toLocaleString());
+  setText('#incidentActiveCount', activeCount.toLocaleString());
+  setText('#incidentAreaTotal', `${visibleArea.toFixed(2)} km²`);
+  setText('#incidentFilterSummary', `Showing ${filtered.length} of ${recentPollutionEvents.length} archive records`);
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty-row">No pollution incidents match the selected filters</div>';
     return;
   }
-  container.innerHTML = events.slice(0, 5).map(event => {
+
+  container.innerHTML = filtered.slice(0, 8).map(event => {
     const area = numberValue(event.area_km2);
-    const areaLabel = area ? `${area.toFixed(2)} km²` : 'Area n/a';
-    return `<div class="recent-event-row"><i></i><strong>${escapeHtml(event.event_id || 'Event')}</strong><span>${escapeHtml(formatDate(event.event_time))}</span><b>${escapeHtml(areaLabel)}</b><em>${escapeHtml(event.status || event.level || 'Recorded')}</em></div>`;
+    const areaLabel = area ? `${area.toFixed(2)} km²` : '—';
+    const risk = event.risk_level || event.level || 'Recorded';
+    const status = event.status || 'Recorded';
+    return `<div class="incident-table-row" role="row"><strong>${escapeHtml(event.event_id || 'Event')}</strong><span>${escapeHtml(formatDate(event.event_time))}</span><b>${escapeHtml(areaLabel)}</b><em>${escapeHtml(risk)}</em><u>${escapeHtml(status)}</u><button type="button" class="incident-row-action" data-event-action="locate">Locate</button></div>`;
   }).join('');
+}
+
+function renderRecentEvents(events = []) {
+  recentPollutionEvents = events.slice(0, 50);
+  applyIncidentFilters();
 }
 
 function renderFootprintChart(events = []) {
@@ -947,6 +983,20 @@ function bindControls() {
   $('#warningLayerToggle').addEventListener('change', event => setLayerGroupVisibility('warnings', event.currentTarget.checked));
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
+  });
+  $('#incidentStatusFilter')?.addEventListener('change', applyIncidentFilters);
+  $('#incidentRiskFilter')?.addEventListener('change', applyIncidentFilters);
+  $('#incidentSearchFilter')?.addEventListener('input', applyIncidentFilters);
+  $('#incidentFilterReset')?.addEventListener('click', () => {
+    $('#incidentStatusFilter').value = 'all';
+    $('#incidentRiskFilter').value = 'all';
+    $('#incidentSearchFilter').value = '';
+    applyIncidentFilters();
+  });
+  $('#recentEventsList')?.addEventListener('click', event => {
+    if (!event.target.closest('[data-event-action="locate"]')) return;
+    activateView('pollution');
+    showMessage('Pollution event layers enabled on the map');
   });
   $('#detailClose').addEventListener('click', () => detailPanel.classList.remove('visible'));
   $('#showTrackButton').addEventListener('click', showSelectedTrack);

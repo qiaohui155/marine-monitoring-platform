@@ -169,15 +169,31 @@
         </div>
       </section>
 
-      <section class="floating-panel floating-panel-wide" data-floating-panel="incidents" data-default-x="870" data-default-y="132" aria-hidden="true">
+      <section class="floating-panel business-dialog incident-business-dialog" data-floating-panel="incidents" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="panel-title-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg></div>
-          <div><small>06 · INCIDENT ARCHIVE</small><h2>Recent Pollution Events</h2></div>
-          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+          <div class="business-dialog-title"><span>06</span><h2>POLLUTION INCIDENTS</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize" aria-label="Minimize Pollution Incidents">−</button><button type="button" data-panel-hide title="Hide" aria-label="Hide Pollution Incidents">□</button><button type="button" data-panel-close title="Close" aria-label="Close Pollution Incidents">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="panel-view-actions"><button type="button" class="view-action" data-view="pollution">SHOW POLLUTION SITUATION</button></div>
-          <div class="recent-events-list" id="recentEventsList"><div class="empty-row">Waiting for database records…</div></div>
+          <div class="incident-overview-cards">
+            <article><span>Total records</span><strong id="incidentRecordCount">0</strong><small>Latest archive results</small></article>
+            <article><span>Open / processing</span><strong id="incidentActiveCount">0</strong><small>Events requiring attention</small></article>
+            <article><span>Reported area</span><strong id="incidentAreaTotal">0.00 km²</strong><small>Visible result total</small></article>
+          </div>
+
+          <div class="incident-filter-bar" aria-label="Pollution incident filters">
+            <label><span>Status</span><select id="incidentStatusFilter"><option value="all">All statuses</option><option value="active">Active</option><option value="processing">Processing</option><option value="closed">Closed</option></select></label>
+            <label><span>Risk</span><select id="incidentRiskFilter"><option value="all">All risk levels</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
+            <label class="incident-search-field"><span>Search event</span><input id="incidentSearchFilter" type="search" placeholder="Incident ID or status" /></label>
+            <button class="incident-reset-button" id="incidentFilterReset" type="button">Reset</button>
+          </div>
+
+          <div class="incident-table" role="table" aria-label="Pollution incident archive">
+            <div class="incident-table-head" role="row"><span>Incident ID</span><span>Time</span><span>Area</span><span>Risk</span><span>Status</span><span>Action</span></div>
+            <div class="recent-events-list" id="recentEventsList" role="rowgroup"><div class="empty-row">Waiting for database records…</div></div>
+          </div>
+
+          <div class="incident-dialog-footer"><span id="incidentFilterSummary">Showing current archive records</span><button type="button" class="business-primary-action" data-view="pollution">SHOW ON MAP</button></div>
         </div>
       </section>
 

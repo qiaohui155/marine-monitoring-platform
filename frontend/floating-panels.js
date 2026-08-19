@@ -24,6 +24,8 @@
           y: this.numberValue(element.dataset.defaultY, this.headerHeight + 62 + index * 16),
           defaultX: this.numberValue(element.dataset.defaultX, 76 + index * 18),
           defaultY: this.numberValue(element.dataset.defaultY, this.headerHeight + 62 + index * 16),
+          centerOnFirstOpen: element.dataset.centered === 'true',
+          hasOpened: false,
           zIndex: this.highestZIndex + index
         };
 
@@ -75,8 +77,10 @@
       if (!state) return;
       this.setVisible(state, true);
       this.bringToFront(id);
+      if (state.centerOnFirstOpen && !state.hasOpened) this.centerPanel(state);
       this.clampPosition(state);
       this.applyPosition(state);
+      state.hasOpened = true;
       state.element.querySelector('button, input, select, [tabindex]')?.focus({ preventScroll: true });
       this.syncToolbar();
     }
@@ -196,6 +200,13 @@
       const maxY = Math.max(this.headerHeight + this.margin, window.innerHeight - height - this.margin);
       state.x = Math.min(Math.max(state.x, this.margin), maxX);
       state.y = Math.min(Math.max(state.y, this.headerHeight + this.margin), maxY);
+    }
+
+    centerPanel(state) {
+      const width = state.element.offsetWidth || 680;
+      const height = state.element.offsetHeight || 460;
+      state.x = (window.innerWidth - width) / 2;
+      state.y = this.headerHeight + (window.innerHeight - this.headerHeight - height) / 2;
     }
 
     applyPosition(state) {
