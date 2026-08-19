@@ -36,7 +36,7 @@ let vesselAnimationFrame = null;
 let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
-let activeModule = null;
+let floatingPanelManager = null;
 const requestedBasemap = new URLSearchParams(window.location.search).get('basemap');
 let activeBasemap = requestedBasemap || localStorage.getItem('oman-basemap') || 'operations';
 if (!BASEMAP_LAYERS[activeBasemap]) activeBasemap = 'operations';
@@ -816,7 +816,7 @@ function setLayerToggle(toggleId, group, visible) {
 }
 
 function activateView(view) {
-  document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+  document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === view);
   });
   if (view === 'vessels') {
@@ -849,7 +849,7 @@ function showSelectedTrack() {
   const track = trackData.features.find(feature => String(feature.properties.mmsi) === String(selectedMmsi));
   if (!track) return showMessage('No historical track is available for this vessel');
 
-  document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+  document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === 'tracks');
   });
   setLayerToggle('#trackLayerToggle', 'tracks', true);
@@ -888,45 +888,24 @@ function setBasemap(name) {
   showMessage(`${label} basemap selected`);
 }
 
-function syncModuleDock() {
-  document.querySelectorAll('[data-module-toggle]').forEach(button => {
-    const moduleId = button.dataset.moduleToggle;
-    const isMapHome = moduleId === '04' && activeModule === null;
-    const isOpen = moduleId === activeModule;
-    button.classList.toggle('active', isMapHome || isOpen);
-    button.setAttribute('aria-expanded', String(isMapHome || isOpen));
-  });
-}
-
-function closeModulePanels() {
-  document.querySelectorAll('[data-module-panel]').forEach(panel => {
-    panel.classList.remove('module-visible');
-    panel.setAttribute('aria-hidden', 'true');
-  });
-  activeModule = null;
-  syncModuleDock();
-}
-
-function toggleModulePanel(moduleId) {
-  if (moduleId === '04' || moduleId === activeModule) {
-    closeModulePanels();
-    return;
-  }
-
-  document.querySelectorAll('[data-module-panel]').forEach(panel => {
-    const shouldOpen = panel.dataset.modulePanel === moduleId;
-    panel.classList.toggle('module-visible', shouldOpen);
-    panel.setAttribute('aria-hidden', String(!shouldOpen));
-  });
-
-  activeModule = moduleId;
-  syncModuleDock();
-}
-
 function bindControls() {
   if (controlsBound) return;
   controlsBound = true;
+  if (window.FloatingPanelManager) {
+    floatingPanelManager = new window.FloatingPanelManager({
+      headerHeight: 60,
+      margin: 12,
+      startingZIndex: 1100
+    }).init();
+  }
   $('#homeMap').addEventListener('click', () => map.flyTo({ ...HOME, speed:1.1 }));
+  $('#liveMapTool').addEventListener('click', () => {
+    floatingPanelManager?.hideAll();
+    detailPanel.classList.remove('visible');
+    activateView('vessels');
+    map.flyTo({ ...HOME, speed:1.1 });
+    showMessage('Live maritime situation map');
+  });
   $('#zoomIn').addEventListener('click', () => map.zoomIn());
   $('#zoomOut').addEventListener('click', () => map.zoomOut());
   $('#toggleLabels').addEventListener('click', event => {
@@ -966,19 +945,9 @@ function bindControls() {
   $('#riskLayerToggle').addEventListener('change', event => setLayerGroupVisibility('risk', event.currentTarget.checked));
   $('#suspiciousLayerToggle').addEventListener('change', event => setLayerGroupVisibility('suspicious', event.currentTarget.checked));
   $('#warningLayerToggle').addEventListener('change', event => setLayerGroupVisibility('warnings', event.currentTarget.checked));
-  document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
+  document.querySelectorAll('[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
   });
-  document.querySelectorAll('[data-module-toggle]').forEach(button => {
-    button.addEventListener('click', () => toggleModulePanel(button.dataset.moduleToggle));
-  });
-  document.querySelectorAll('[data-module-close]').forEach(button => {
-    button.addEventListener('click', closeModulePanels);
-  });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && activeModule !== null) closeModulePanels();
-  });
-  syncModuleDock();
   $('#detailClose').addEventListener('click', () => detailPanel.classList.remove('visible'));
   $('#showTrackButton').addEventListener('click', showSelectedTrack);
   $('#searchForm').addEventListener('submit', event => {

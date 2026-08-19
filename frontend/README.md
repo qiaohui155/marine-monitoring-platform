@@ -13,11 +13,14 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Dynamic dashboard statistics, risk signals, incident status, and recent events
 - Automatic API refresh every 15 seconds
 - Smooth movement from the previous real AIS coordinate to each newly received coordinate
+- Full-screen map workspace with compact left and right toolbars
+- Independent floating business panels with drag, minimize, hide, close, multi-window, and viewport-boundary support
 
 ## Main files
 
 - `index.html` — dashboard structure, panels, controls, and labels
 - `styles.css` — responsive business-screen layout, colors, and visual styling
 - `app.js` — map rendering, API calls, statistics, filtering, and interaction
+- `floating-panels.js` — reusable floating-panel state, drag, focus, window controls, and boundary management
 
 To run the complete local platform, double-click `..\start_platform.bat` and open `http://127.0.0.1:5173/`.
