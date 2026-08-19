@@ -36,6 +36,7 @@ let vesselAnimationFrame = null;
 let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
+let activeModule = null;
 const requestedBasemap = new URLSearchParams(window.location.search).get('basemap');
 let activeBasemap = requestedBasemap || localStorage.getItem('oman-basemap') || 'operations';
 if (!BASEMAP_LAYERS[activeBasemap]) activeBasemap = 'operations';
@@ -887,6 +888,41 @@ function setBasemap(name) {
   showMessage(`${label} basemap selected`);
 }
 
+function syncModuleDock() {
+  document.querySelectorAll('[data-module-toggle]').forEach(button => {
+    const moduleId = button.dataset.moduleToggle;
+    const isMapHome = moduleId === '04' && activeModule === null;
+    const isOpen = moduleId === activeModule;
+    button.classList.toggle('active', isMapHome || isOpen);
+    button.setAttribute('aria-expanded', String(isMapHome || isOpen));
+  });
+}
+
+function closeModulePanels() {
+  document.querySelectorAll('[data-module-panel]').forEach(panel => {
+    panel.classList.remove('module-visible');
+    panel.setAttribute('aria-hidden', 'true');
+  });
+  activeModule = null;
+  syncModuleDock();
+}
+
+function toggleModulePanel(moduleId) {
+  if (moduleId === '04' || moduleId === activeModule) {
+    closeModulePanels();
+    return;
+  }
+
+  document.querySelectorAll('[data-module-panel]').forEach(panel => {
+    const shouldOpen = panel.dataset.modulePanel === moduleId;
+    panel.classList.toggle('module-visible', shouldOpen);
+    panel.setAttribute('aria-hidden', String(!shouldOpen));
+  });
+
+  activeModule = moduleId;
+  syncModuleDock();
+}
+
 function bindControls() {
   if (controlsBound) return;
   controlsBound = true;
@@ -933,18 +969,16 @@ function bindControls() {
   document.querySelectorAll('.nav-tab[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
   });
-  $('#collapseControl').addEventListener('click', () => {
-    $('.control-panel').classList.add('collapsed');
-    $('.dashboard-grid').classList.add('left-collapsed');
-    $('#openControl').classList.add('visible');
-    setTimeout(() => map.resize(), 240);
+  document.querySelectorAll('[data-module-toggle]').forEach(button => {
+    button.addEventListener('click', () => toggleModulePanel(button.dataset.moduleToggle));
   });
-  $('#openControl').addEventListener('click', () => {
-    $('.control-panel').classList.remove('collapsed');
-    $('.dashboard-grid').classList.remove('left-collapsed');
-    $('#openControl').classList.remove('visible');
-    setTimeout(() => map.resize(), 240);
+  document.querySelectorAll('[data-module-close]').forEach(button => {
+    button.addEventListener('click', closeModulePanels);
   });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && activeModule !== null) closeModulePanels();
+  });
+  syncModuleDock();
   $('#detailClose').addEventListener('click', () => detailPanel.classList.remove('visible'));
   $('#showTrackButton').addEventListener('click', showSelectedTrack);
   $('#searchForm').addEventListener('submit', event => {

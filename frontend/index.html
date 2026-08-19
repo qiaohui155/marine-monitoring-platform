@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260819-soft-ocean" />
+  <link rel="stylesheet" href="styles.css?v=20260819-module-workspace" />
 </head>
 <body>
   <main class="platform-shell">
@@ -59,11 +59,23 @@
     </section>
 
     <section class="dashboard-grid">
+      <nav class="module-dock" aria-label="Monitoring function modules">
+        <button class="module-tab" type="button" data-module-toggle="01" aria-expanded="false"><span>01</span><strong>Vessel Types</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="02" aria-expanded="false"><span>02</span><strong>Map Layers</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="03" aria-expanded="false"><span>03</span><strong>System</strong></button>
+        <button class="module-tab active" type="button" data-module-toggle="04" aria-expanded="true"><span>04</span><strong>Live Map</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="05" aria-expanded="false"><span>05</span><strong>Footprint</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="06" aria-expanded="false"><span>06</span><strong>Incidents</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="07" aria-expanded="false"><span>07</span><strong>Risk Signals</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="08" aria-expanded="false"><span>08</span><strong>Status</strong></button>
+        <button class="module-tab" type="button" data-module-toggle="09" aria-expanded="false"><span>09</span><strong>Watch</strong></button>
+      </nav>
+
       <aside class="control-panel dashboard-column left-column">
-        <section class="data-panel vessel-mix-panel">
+        <section class="data-panel vessel-mix-panel module-panel" data-module-panel="01" aria-hidden="true">
           <div class="panel-heading">
             <div><span class="panel-index">01</span><div><small>FLEET COMPOSITION</small><h2>Vessel Type Distribution</h2></div></div>
-            <button id="collapseControl" aria-label="Collapse left panel">‹</button>
+            <button class="module-close" type="button" data-module-close="01" aria-label="Close vessel type panel">×</button>
           </div>
           <div class="type-filters">
             <label>
@@ -90,9 +102,10 @@
           <button class="text-action" id="resetFilters">SHOW ALL VESSEL TYPES</button>
         </section>
 
-        <section class="data-panel layer-panel">
+        <section class="data-panel layer-panel module-panel" data-module-panel="02" aria-hidden="true">
           <div class="panel-heading compact">
             <div><span class="panel-index">02</span><div><small>OPERATIONAL OVERLAYS</small><h2>Map Layer Control</h2></div></div>
+            <button class="module-close" type="button" data-module-close="02" aria-label="Close map layer panel">×</button>
           </div>
           <div class="layer-list">
             <label class="layer-switch"><span><i class="layer-dot vessels"></i>Vessel positions</span><input id="vesselLayerToggle" type="checkbox" checked><em></em></label>
@@ -105,9 +118,10 @@
           <p class="data-note"><i></i>Layers are served by the local PostGIS API and refreshed automatically.</p>
         </section>
 
-        <section class="data-panel system-panel">
+        <section class="data-panel system-panel module-panel" data-module-panel="03" aria-hidden="true">
           <div class="panel-heading compact">
             <div><span class="panel-index">03</span><div><small>DATA PIPELINE</small><h2>System Readiness</h2></div></div>
+            <button class="module-close" type="button" data-module-close="03" aria-label="Close system panel">×</button>
           </div>
           <div class="system-status-list">
             <div><span><i class="online"></i>PostGIS database</span><b>ONLINE</b></div>
@@ -171,8 +185,6 @@
             </div>
 
             <div class="map-live-badge"><i></i><span>LIVE MAP</span><b id="mapZoom">Z 5.3</b></div>
-            <button class="open-control" id="openControl" aria-label="Open vessel controls">☰</button>
-
             <aside class="detail-panel" id="detailPanel" aria-live="polite">
               <button class="detail-close" id="detailClose" aria-label="Close details">×</button>
               <div class="detail-top">
@@ -206,10 +218,10 @@
         </section>
 
         <section class="lower-intelligence-grid">
-          <article class="data-panel footprint-panel">
+          <article class="data-panel footprint-panel module-panel module-panel-wide" data-module-panel="05" aria-hidden="true">
             <div class="panel-heading compact">
               <div><span class="panel-index">05</span><div><small>RECENT EVENT PROFILE</small><h2>Pollution Footprint Comparison</h2></div></div>
-              <span class="unit-label">AREA · KM²</span>
+              <div class="panel-heading-actions"><span class="unit-label">AREA · KM²</span><button class="module-close" type="button" data-module-close="05" aria-label="Close footprint panel">×</button></div>
             </div>
             <div class="mini-chart-wrap">
               <svg id="activityTrend" viewBox="0 0 520 118" preserveAspectRatio="none" aria-label="Recent pollution footprint chart">
@@ -222,10 +234,10 @@
             </div>
           </article>
 
-          <article class="data-panel recent-events-panel">
+          <article class="data-panel recent-events-panel module-panel module-panel-wide" data-module-panel="06" aria-hidden="true">
             <div class="panel-heading compact">
               <div><span class="panel-index">06</span><div><small>INCIDENT ARCHIVE</small><h2>Recent Pollution Events</h2></div></div>
-              <span class="pulse-label"><i></i>LIVE</span>
+              <div class="panel-heading-actions"><span class="pulse-label"><i></i>LIVE</span><button class="module-close" type="button" data-module-close="06" aria-label="Close incident panel">×</button></div>
             </div>
             <div class="recent-events-list" id="recentEventsList">
               <div class="empty-row">Waiting for database records…</div>
@@ -235,9 +247,10 @@
       </section>
 
       <aside class="dashboard-column right-column">
-        <section class="data-panel risk-panel">
+        <section class="data-panel risk-panel module-panel" data-module-panel="07" aria-hidden="true">
           <div class="panel-heading compact">
             <div><span class="panel-index">07</span><div><small>RISK INTELLIGENCE</small><h2>Current Risk Signals</h2></div></div>
+            <button class="module-close" type="button" data-module-close="07" aria-label="Close risk panel">×</button>
           </div>
           <div class="risk-gauge-wrap">
             <div class="risk-gauge" id="riskGauge"><div><strong id="riskGaugeValue">0</strong><span>HIGH-RISK<br>SIGNALS</span></div></div>
@@ -249,18 +262,20 @@
           </div>
         </section>
 
-        <section class="data-panel event-status-panel">
+        <section class="data-panel event-status-panel module-panel" data-module-panel="08" aria-hidden="true">
           <div class="panel-heading compact">
             <div><span class="panel-index">08</span><div><small>RESPONSE WORKFLOW</small><h2>Incident Status</h2></div></div>
+            <button class="module-close" type="button" data-module-close="08" aria-label="Close incident status panel">×</button>
           </div>
           <div class="status-bars" id="eventStatusBars">
             <div class="empty-row">Waiting for status summary…</div>
           </div>
         </section>
 
-        <section class="data-panel watch-panel">
+        <section class="data-panel watch-panel module-panel" data-module-panel="09" aria-hidden="true">
           <div class="panel-heading compact">
             <div><span class="panel-index">09</span><div><small>MONITORING FOCUS</small><h2>Operational Watch</h2></div></div>
+            <button class="module-close" type="button" data-module-close="09" aria-label="Close operational watch panel">×</button>
           </div>
           <div class="watch-grid">
             <article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article>
@@ -285,6 +300,6 @@
   </main>
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-  <script src="app.js?v=20260818-live-vessel-motion"></script>
+  <script src="app.js?v=20260819-module-workspace"></script>
 </body>
 </html>
