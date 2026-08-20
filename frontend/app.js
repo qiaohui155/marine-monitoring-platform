@@ -3,7 +3,7 @@ const AUTO_REFRESH_MS = 15000;
 const VESSEL_ANIMATION_MS = 6000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
-const AUTO_BASEMAP_ZOOM_THRESHOLD = 5;
+const DETAILED_VESSEL_ZOOM = 9;
 const BASEMAP_LAYERS = {
   operations: ['osm'],
   street: ['osm-color'],
@@ -12,7 +12,7 @@ const BASEMAP_LAYERS = {
 };
 
 function automaticBasemapForZoom(zoom) {
-  return Number(zoom) > AUTO_BASEMAP_ZOOM_THRESHOLD ? 'street' : 'satellite-hybrid';
+  return Number(zoom) >= DETAILED_VESSEL_ZOOM ? 'satellite-hybrid' : 'street';
 }
 const TYPE_COLORS = {
   Overview: '#ffd84d',
@@ -318,7 +318,7 @@ function addVesselLayers() {
     id: 'vessel-selection',
     type: 'circle',
     source: 'vessels',
-    minzoom: 9,
+    minzoom: DETAILED_VESSEL_ZOOM,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 8, 9, 14],
       'circle-color': '#ffffff',
@@ -331,7 +331,7 @@ function addVesselLayers() {
     id: 'vessels-overview',
     type: 'symbol',
     source: 'vessels',
-    maxzoom: 9,
+    maxzoom: DETAILED_VESSEL_ZOOM,
     layout: {
       'icon-image': 'ship-overview',
       'icon-size': ['interpolate', ['linear'], ['zoom'], 4, .30, 6, .38, 8.9, .52],
@@ -345,7 +345,7 @@ function addVesselLayers() {
     id: 'vessels',
     type: 'symbol',
     source: 'vessels',
-    minzoom: 9,
+    minzoom: DETAILED_VESSEL_ZOOM,
     layout: {
       'icon-image': shipImageExpression(),
       'icon-size': ['interpolate', ['linear'], ['zoom'], 9, .54, 12, .72],
