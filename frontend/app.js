@@ -440,6 +440,229 @@ function highRiskCount(counts = {}) {
   }, 0);
 }
 
+function isHighLevel(value) {
+  return /高|一级|核心|high|critical|level\s*1|red/i.test(String(value || ''));
+}
+
+function featureCenter(feature) {
+  const properties = feature?.properties || {};
+  const propertyLng = Number(properties.center_longitude);
+  const propertyLat = Number(properties.center_latitude);
+  if (Number.isFinite(propertyLng) && Number.isFinite(propertyLat)) return [propertyLng, propertyLat];
+
+  const geometry = feature?.geometry;
+  if (!geometry) return null;
+  if (geometry.type === 'Point' && geometry.coordinates?.length >= 2) {
+    const point = geometry.coordinates.map(Number);
+    return point.every(Number.isFinite) ? point.slice(0, 2) : null;
+  }
+
+  const points = [];
+  const collect = coordinates => {
+    if (!Array.isArray(coordinates)) return;
+    if (coordinates.length >= 2 && Number.isFinite(Number(coordinates[0])) && Number.isFinite(Number(coordinates[1]))) {
+      points.push([Number(coordinates[0]), Number(coordinates[1])]);
+      return;
+    }
+    coordinates.forEach(collect);
+  };
+  collect(geometry.coordinates);
+  if (!points.length) return null;
+  const bounds = points.reduce((value, point) => ({
+    west: Math.min(value.west, point[0]),
+    east: Math.max(value.east, point[0]),
+    south: Math.min(value.south, point[1]),
+    north: Math.max(value.north, point[1])
+  }), { west: Infinity, east: -Infinity, south: Infinity, north: -Infinity });
+  return [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2];
+}
+
+function distanceNm(first, second) {
+  if (!first || !second) return Infinity;
+  const radians = value => value * Math.PI / 180;
+  const latitudeDelta = radians(second[1] - first[1]);
+  const longitudeDelta = radians(second[0] - first[0]);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(first[1])) * Math.cos(radians(second[1])) * Math.sin(longitudeDelta / 2) ** 2;
+  return 3440.065 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function pollutionFeatures() {
+  return [...(pollutionData.features || [])].sort((a, b) => {
+    return Date.parse(b.properties?.event_time || 0) - Date.parse(a.properties?.event_time || 0);
+  });
+}
+
+function pollutionFeatureById(eventId) {
+  return pollutionFeatures().find(feature => String(feature.properties?.event_id ?? feature.id) === String(eventId)) || null;
+}
+
+function syncEventSelect(selector) {
+  const select = $(selector);
+  if (!select) return null;
+  const current = select.value;
+  const events = pollutionFeatures();
+  if (!events.length) {
+    select.innerHTML = '<option value="">No event records available</option>';
+    return null;
+  }
+  select.innerHTML = events.map(feature => {
+    const properties = feature.properties || {};
+    const id = properties.event_id ?? feature.id;
+    return `<option value="${escapeHtml(id)}">${escapeHtml(id)} · ${escapeHtml(formatDate(properties.event_time))}</option>`;
+  }).join('');
+  if (events.some(feature => String(feature.properties?.event_id ?? feature.id) === current)) select.value = current;
+  return pollutionFeatureById(select.value);
+}
+
+function nearbyVessels(feature, limit = 6) {
+  const center = featureCenter(feature);
+  if (!center) return [];
+  const suspectedMmsi = new Set((suspiciousData.features || []).map(item => String(item.properties?.mmsi || '')));
+  return (vesselData.features || []).map(vessel => ({
+    vessel,
+    distance: distanceNm(center, featureCenter(vessel)),
+    suspected: suspectedMmsi.has(String(vessel.properties?.mmsi || ''))
+  })).filter(item => Number.isFinite(item.distance)).sort((a, b) => a.distance - b.distance).slice(0, limit);
+}
+
+function renderSatelliteReadiness() {
+  const events = pollutionFeatures();
+  setText('#satelliteEventCount', events.length.toLocaleString());
+  setText('#satelliteReadinessLabel', events.length ? `${events.length} mapped events` : 'Data readiness');
+}
+
+function renderSourceAnalysis() {
+  const feature = syncEventSelect('#sourceEventSelect');
+  const container = $('#sourceCandidateList');
+  if (!feature || !container) {
+    setText('#sourceCandidateCount', '0 candidates');
+    if (container) container.innerHTML = '<div class="empty-row">No event record is available for screening</div>';
+    return;
+  }
+  const properties = feature.properties || {};
+  const center = featureCenter(feature);
+  const candidates = nearbyVessels(feature);
+  setText('#sourceEventTime', formatDate(properties.event_time));
+  setText('#sourceEventArea', properties.area_km2 == null ? '—' : `${numberValue(properties.area_km2).toFixed(2)} km²`);
+  setText('#sourceEventCoordinates', center ? `${center[1].toFixed(4)}° N, ${center[0].toFixed(4)}° E` : '—');
+  setText('#sourceCandidateCount', `${candidates.length} candidates`);
+  container.innerHTML = candidates.length ? candidates.map(({ vessel, distance, suspected }) => {
+    const item = vessel.properties || {};
+    return `<div class="candidate-row"><strong>${escapeHtml(item.ship_name || item.mmsi || 'Unknown vessel')}<small>${escapeHtml(item.mmsi || 'No MMSI')}</small></strong><span>${escapeHtml(item.ship_type || 'Other')}</span><span>${distance.toFixed(1)} NM</span><em class="${suspected ? 'priority' : ''}">${suspected ? 'Priority list' : 'Proximity'}</em></div>`;
+  }).join('') : '<div class="empty-row">No vessel positions are available for screening</div>';
+}
+
+function renderAlertCenter() {
+  const features = warningData.features || [];
+  const sorted = [...features].sort((a, b) => Date.parse(b.properties?.warning_time || 0) - Date.parse(a.properties?.warning_time || 0));
+  setText('#alertTotal', features.length.toLocaleString());
+  setText('#alertHighCount', features.filter(feature => isHighLevel(feature.properties?.warning_level)).length.toLocaleString());
+  setText('#alertLatestTime', sorted.length ? formatDate(sorted[0].properties?.warning_time) : '—');
+  const container = $('#alertRecordList');
+  if (!container) return;
+  container.innerHTML = sorted.length ? sorted.slice(0, 8).map(feature => {
+    const properties = feature.properties || {};
+    return `<div class="alert-record-row"><div><strong>${escapeHtml(properties.warning_name || `Warning ${feature.id ?? ''}`)}</strong><small>${escapeHtml(properties.warning_level || 'Recorded')} · ${escapeHtml(formatDate(properties.warning_time))}</small></div><button type="button" data-warning-id="${escapeHtml(feature.id ?? properties.id)}">LOCATE</button></div>`;
+  }).join('') : '<div class="empty-row">No warning records are available</div>';
+}
+
+function warningNearFeature(feature) {
+  const center = featureCenter(feature);
+  if (!center) return null;
+  return (warningData.features || []).map(warning => ({ warning, distance: distanceNm(center, featureCenter(warning)) }))
+    .filter(item => Number.isFinite(item.distance)).sort((a, b) => a.distance - b.distance)[0] || null;
+}
+
+function evidenceItems(feature) {
+  const properties = feature?.properties || {};
+  const center = featureCenter(feature);
+  const candidates = feature ? nearbyVessels(feature) : [];
+  const warning = feature ? warningNearFeature(feature) : null;
+  return [
+    ['Incident identity', Boolean(properties.event_id ?? feature?.id), 'Event number in the archive'],
+    ['Observation time', Boolean(properties.event_time), 'Recorded incident timestamp'],
+    ['Pollution geometry', Boolean(feature?.geometry), 'Mapped boundary or point'],
+    ['Affected-area estimate', properties.area_km2 != null, 'Reported area in square kilometres'],
+    ['Center coordinates', Boolean(center), 'Derived event center'],
+    ['Response status', Boolean(properties.status), 'Current processing state'],
+    ['Nearby vessel screening', candidates.length > 0, `${candidates.length} current positions ranked`],
+    ['Related warning record', Boolean(warning && warning.distance <= 100), warning ? `${warning.distance.toFixed(1)} NM from event center` : 'No nearby warning record'],
+    ['Original satellite product', false, 'Dedicated product not connected'],
+    ['Analyst-approved report', false, 'Approval workflow not configured']
+  ];
+}
+
+function renderEvidenceReadiness() {
+  const feature = syncEventSelect('#evidenceEventSelect');
+  const container = $('#evidenceChecklist');
+  const items = feature ? evidenceItems(feature) : [];
+  const available = items.filter(([, ready]) => ready).length;
+  const percent = items.length ? Math.round(available / items.length * 100) : 0;
+  setText('#evidenceReadyCount', `${available} / ${items.length} available`);
+  setText('#evidenceProgressText', `${percent}%`);
+  if ($('#evidenceProgressBar')) $('#evidenceProgressBar').style.width = `${percent}%`;
+  if (!container) return;
+  container.innerHTML = items.length ? items.map(([label, ready, description]) => `<div class="evidence-item ${ready ? '' : 'missing'}"><i>${ready ? '✓' : '!'}</i><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></div></div>`).join('') : '<div class="empty-row">No event record is available for review</div>';
+}
+
+function refreshRequirementModules() {
+  renderSatelliteReadiness();
+  renderSourceAnalysis();
+  renderAlertCenter();
+  renderEvidenceReadiness();
+}
+
+function locateFeature(feature, message, { warning = false } = {}) {
+  const center = featureCenter(feature);
+  if (!center || !map) return showMessage('This record has no valid map location');
+  activateView('pollution');
+  if (warning) setLayerToggle('#warningLayerToggle', 'warnings', true);
+  floatingPanelManager?.hideAll();
+  map.flyTo({ center, zoom: Math.max(map.getZoom(), 7.4), speed: 1.05 });
+  showMessage(message);
+}
+
+function downloadDraftSummary() {
+  const feature = pollutionFeatureById($('#evidenceEventSelect')?.value);
+  if (!feature) return showMessage('Select an event before creating a draft summary');
+  const properties = feature.properties || {};
+  const center = featureCenter(feature);
+  const candidates = nearbyVessels(feature).map(({ vessel, distance, suspected }) => ({
+    mmsi: vessel.properties?.mmsi,
+    ship_name: vessel.properties?.ship_name,
+    ship_type: vessel.properties?.ship_type,
+    distance_nm: Number(distance.toFixed(2)),
+    priority_list: suspected
+  }));
+  const documentData = {
+    document_type: 'EVENT_REVIEW_DRAFT',
+    generated_at: new Date().toISOString(),
+    event: {
+      event_id: properties.event_id ?? feature.id,
+      event_time: properties.event_time,
+      status: properties.status,
+      level: properties.level,
+      area_km2: properties.area_km2,
+      center_longitude: center?.[0] ?? null,
+      center_latitude: center?.[1] ?? null
+    },
+    nearby_vessel_screening: candidates,
+    completeness: evidenceItems(feature).map(([item, available, note]) => ({ item, available, note })),
+    note: 'Draft for operational review. Original satellite products, analysis records and approval are required for a formal evidence package.'
+  };
+  const blob = new Blob([JSON.stringify(documentData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${properties.event_id || feature.id || 'event'}_review_draft.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showMessage('Draft event summary downloaded');
+}
+
 function updateVesselMixBars(counts) {
   const total = Math.max(1, Object.values(counts).reduce((sum, value) => sum + value, 0));
   Object.entries(counts).forEach(([type, count]) => {
@@ -503,7 +726,7 @@ function applyIncidentFilters() {
     const areaLabel = area ? `${area.toFixed(2)} km²` : '—';
     const risk = event.risk_level || event.level || 'Recorded';
     const status = event.status || 'Recorded';
-    return `<div class="incident-table-row" role="row"><strong>${escapeHtml(event.event_id || 'Event')}</strong><span>${escapeHtml(formatDate(event.event_time))}</span><b>${escapeHtml(areaLabel)}</b><em>${escapeHtml(risk)}</em><u>${escapeHtml(status)}</u><button type="button" class="incident-row-action" data-event-action="locate">Locate</button></div>`;
+    return `<div class="incident-table-row" role="row"><strong>${escapeHtml(event.event_id || 'Event')}</strong><span>${escapeHtml(formatDate(event.event_time))}</span><b>${escapeHtml(areaLabel)}</b><em>${escapeHtml(risk)}</em><u>${escapeHtml(status)}</u><button type="button" class="incident-row-action" data-event-action="locate" data-event-id="${escapeHtml(event.event_id || '')}">Locate</button></div>`;
   }).join('');
 }
 
@@ -784,6 +1007,7 @@ async function refreshPlatformData({ initial = false } = {}) {
     loadOperationalLayers({ initial }),
     loadDashboard()
   ]);
+  refreshRequirementModules();
 }
 
 function startAutoRefresh() {
@@ -1044,10 +1268,33 @@ function bindControls() {
     applyIncidentFilters();
   });
   $('#recentEventsList')?.addEventListener('click', event => {
-    if (!event.target.closest('[data-event-action="locate"]')) return;
-    activateView('pollution');
-    showMessage('Pollution event layers enabled on the map');
+    const button = event.target.closest('[data-event-action="locate"]');
+    if (!button) return;
+    const feature = pollutionFeatureById(button.dataset.eventId);
+    if (feature) locateFeature(feature, `${feature.properties?.event_id || 'Pollution event'} located on the map`);
   });
+  $('#satelliteShowEvents')?.addEventListener('click', () => {
+    activateView('pollution');
+    floatingPanelManager?.hide('satellite-products');
+    showMessage('Pollution event footprints enabled');
+  });
+  $('#sourceEventSelect')?.addEventListener('change', renderSourceAnalysis);
+  $('#sourceLocateEvent')?.addEventListener('click', () => {
+    const feature = pollutionFeatureById($('#sourceEventSelect')?.value);
+    if (feature) locateFeature(feature, `${feature.properties?.event_id || 'Event'} screening area located`);
+  });
+  $('#alertRecordList')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-warning-id]');
+    if (!button) return;
+    const feature = (warningData.features || []).find(item => String(item.id ?? item.properties?.id) === String(button.dataset.warningId));
+    if (feature) locateFeature(feature, `${feature.properties?.warning_name || 'Warning area'} located`, { warning: true });
+  });
+  $('#evidenceEventSelect')?.addEventListener('change', renderEvidenceReadiness);
+  $('#evidenceLocateEvent')?.addEventListener('click', () => {
+    const feature = pollutionFeatureById($('#evidenceEventSelect')?.value);
+    if (feature) locateFeature(feature, `${feature.properties?.event_id || 'Event'} located for record review`);
+  });
+  $('#downloadDraftSummary')?.addEventListener('click', downloadDraftSummary);
   $('#detailClose').addEventListener('click', clearSelectedVessel);
   $('#showTrackButton').addEventListener('click', showSelectedTrack);
   $('#searchForm').addEventListener('submit', event => {

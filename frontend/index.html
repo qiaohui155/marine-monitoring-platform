@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260819-readable-map-popups" />
+  <link rel="stylesheet" href="styles.css?v=20260820-requirement-workflows" />
 </head>
 <body>
   <main class="platform-shell">
@@ -79,6 +79,19 @@
         </button>
         <button class="toolbar-button" type="button" data-panel-target="operational-watch" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="tool-tooltip"><b>09</b> Operational Watch</span>
+        </button>
+        <span class="toolbar-divider" aria-hidden="true"></span>
+        <button class="toolbar-button" type="button" data-panel-target="satellite-products" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M7 4l4 4-3 3-4-4 3-3zM13 10l7 7-3 3-7-7M10 8l4-4M8 10l-4 4M14 14l-4 4"/><path d="M15 3c3 1 5 3 6 6M16 6c1 .4 1.6 1 2 2"/></svg><span class="tool-tooltip"><b>10</b> Satellite Data Readiness</span>
+        </button>
+        <button class="toolbar-button" type="button" data-panel-target="source-analysis" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><circle cx="6" cy="17" r="2"/><circle cx="18" cy="7" r="2"/><path d="M8 16c4-1 5-6 8-8M4 5h6M7 2v6M14 18h6"/></svg><span class="tool-tooltip"><b>11</b> Vessel Source Screening</span>
+        </button>
+        <button class="toolbar-button" type="button" data-panel-target="alert-center" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M5 16h14l-2-3V9a5 5 0 00-10 0v4l-2 3zM10 19h4"/><path d="M18 4l2-2M6 4L4 2"/></svg><span class="tool-tooltip"><b>12</b> Alert &amp; Response Center</span>
+        </button>
+        <button class="toolbar-button" type="button" data-panel-target="evidence-reports" aria-pressed="false">
+          <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM15 3v5h4M9 12h7M9 16h7"/><path d="M3 7v14h12"/></svg><span class="tool-tooltip"><b>13</b> Evidence &amp; Reports</span>
         </button>
       </aside>
 
@@ -232,6 +245,83 @@
         </div>
       </section>
 
+      <section class="floating-panel business-dialog requirement-dialog" data-floating-panel="satellite-products" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>10</span><h2>SATELLITE DATA READINESS</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Earth Observation Inputs</strong><span>Availability of reference imagery, incident footprints and dedicated satellite products.</span></div><em id="satelliteReadinessLabel">Data readiness</em></div>
+          <div class="readiness-grid">
+            <article><span>Reference imagery</span><strong class="state-ready">AVAILABLE</strong><small>Selectable satellite basemap</small></article>
+            <article><span>Pollution footprints</span><strong id="satelliteEventCount">0</strong><small>Mapped event geometries</small></article>
+            <article><span>SAR products</span><strong class="state-pending">NOT CONNECTED</strong><small>Sentinel-1 product service</small></article>
+            <article><span>Optical products</span><strong class="state-pending">NOT CONNECTED</strong><small>Sentinel-2 confirmation layer</small></article>
+          </div>
+          <div class="workflow-list">
+            <div><span>Full-area observation</span><b>6-hour target</b><em>Schedule pending</em></div>
+            <div><span>High-risk-area monitoring</span><b>3-hour target</b><em>Schedule pending</em></div>
+            <div><span>Emergency observation</span><b>1–2-hour target</b><em>Tasking pending</em></div>
+          </div>
+          <div class="dialog-actions"><button class="business-primary-action" id="satelliteShowEvents" type="button">VIEW EVENT FOOTPRINTS</button></div>
+        </div>
+      </section>
+
+      <section class="floating-panel business-dialog requirement-dialog" data-floating-panel="source-analysis" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>11</span><h2>VESSEL SOURCE SCREENING</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Nearby Vessel Screening</strong><span>Compares an incident center with current vessel positions and the suspected-vessel list.</span></div><em id="sourceCandidateCount">0 candidates</em></div>
+          <label class="business-select"><span>Pollution event</span><select id="sourceEventSelect"><option value="">Waiting for event records</option></select></label>
+          <div class="event-context-grid">
+            <article><span>Event time</span><strong id="sourceEventTime">—</strong></article>
+            <article><span>Reported area</span><strong id="sourceEventArea">—</strong></article>
+            <article><span>Center coordinates</span><strong id="sourceEventCoordinates">—</strong></article>
+          </div>
+          <div class="candidate-table">
+            <div class="candidate-table-head"><span>Vessel</span><span>Type</span><span>Distance</span><span>Review</span></div>
+            <div id="sourceCandidateList"><div class="empty-row">Waiting for vessel and event data…</div></div>
+          </div>
+          <p class="analysis-note">This screening ranks nearby current positions. A confirmed source assessment also requires time-matched trajectories, satellite observations and analyst review.</p>
+          <div class="dialog-actions"><button class="business-primary-action" id="sourceLocateEvent" type="button">LOCATE EVENT</button></div>
+        </div>
+      </section>
+
+      <section class="floating-panel business-dialog requirement-dialog" data-floating-panel="alert-center" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>12</span><h2>ALERT &amp; RESPONSE CENTER</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body">
+          <div class="incident-overview-cards">
+            <article><span>Warning records</span><strong id="alertTotal">0</strong><small>Current database total</small></article>
+            <article><span>High level</span><strong id="alertHighCount">0</strong><small>Priority review records</small></article>
+            <article><span>Latest issued</span><strong class="compact-card-value" id="alertLatestTime">—</strong><small>Newest warning timestamp</small></article>
+          </div>
+          <div class="alert-layout">
+            <section><h3>Warning records</h3><div class="alert-record-list" id="alertRecordList"><div class="empty-row">Waiting for warning records…</div></div></section>
+            <section><h3>Distribution channels</h3><div class="channel-list"><div><span>Email</span><em>NOT CONFIGURED</em></div><div><span>SMS</span><em>NOT CONFIGURED</em></div><div><span>API message</span><em>NOT CONFIGURED</em></div></div><p class="analysis-note">Warning records can be reviewed on the map. External message delivery requires site-specific gateway configuration.</p></section>
+          </div>
+        </div>
+      </section>
+
+      <section class="floating-panel business-dialog requirement-dialog" data-floating-panel="evidence-reports" data-centered="true" aria-hidden="true">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title"><span>13</span><h2>EVIDENCE &amp; REPORTS</h2></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
+        </header>
+        <div class="floating-panel-body">
+          <div class="business-section-intro"><div><strong>Incident Record Completeness</strong><span>Checks the information currently available for an event and prepares a review draft.</span></div><em id="evidenceReadyCount">0 / 0 available</em></div>
+          <label class="business-select"><span>Pollution event</span><select id="evidenceEventSelect"><option value="">Waiting for event records</option></select></label>
+          <div class="evidence-progress"><span><i id="evidenceProgressBar"></i></span><b id="evidenceProgressText">0%</b></div>
+          <div class="evidence-checklist" id="evidenceChecklist"><div class="empty-row">Select an event to review available records</div></div>
+          <p class="analysis-note">The downloadable file is a draft event summary. A formal evidence package additionally requires original imagery, processing records, analyst conclusions and approval information.</p>
+          <div class="dialog-actions"><button class="incident-reset-button" id="evidenceLocateEvent" type="button">LOCATE EVENT</button><button class="business-primary-action" id="downloadDraftSummary" type="button">DOWNLOAD DRAFT SUMMARY</button></div>
+        </div>
+      </section>
+
       <section class="floating-panel business-dialog business-dialog-summary" data-floating-panel="live-summary" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
           <div class="business-dialog-title"><span>LIVE</span><h2>REAL-TIME STATISTICS SUMMARY</h2></div>
@@ -276,6 +366,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260820-stable-map-click"></script>
+  <script src="app.js?v=20260820-requirement-workflows"></script>
 </body>
 </html>

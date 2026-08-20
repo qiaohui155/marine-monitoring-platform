@@ -19,6 +19,12 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Full-screen map workspace with compact left and right toolbars
 - Independent floating business panels with drag, minimize, hide, close, multi-window, and viewport-boundary support
 - Unified medium-large blue-and-white business dialogs for modules 01–03, 05–09, and the live statistics summary, with enlarged readable typography
+- Satellite data-readiness panel for reference imagery, pollution footprints, SAR/optical product access, and observation-target status
+- Event-based nearby-vessel screening that ranks current positions by distance and highlights vessels already on the suspected-vessel list
+- Alert and response center with warning totals, priority levels, map location, and external-channel configuration status
+- Evidence and report workspace with record-completeness checks, event location, and downloadable review-draft summaries
+
+Modules 10–13 use the records currently returned by the local API. Functions that require dedicated satellite products, external message gateways, or an analyst approval workflow are shown as pending until those services are configured.
 
 ## Main files
 
