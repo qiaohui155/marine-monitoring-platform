@@ -3,12 +3,17 @@ const AUTO_REFRESH_MS = 15000;
 const VESSEL_ANIMATION_MS = 6000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
+const AUTO_BASEMAP_ZOOM_THRESHOLD = 5;
 const BASEMAP_LAYERS = {
   operations: ['osm'],
   street: ['osm-color'],
   satellite: ['satellite'],
   'satellite-hybrid': ['satellite', 'satellite-reference']
 };
+
+function automaticBasemapForZoom(zoom) {
+  return Number(zoom) > AUTO_BASEMAP_ZOOM_THRESHOLD ? 'street' : 'satellite-hybrid';
+}
 const TYPE_COLORS = {
   Overview: '#ffd84d',
   Cargo: '#e15d65',
@@ -40,8 +45,9 @@ let mapLayersInitializing = false;
 let controlsBound = false;
 let floatingPanelManager = null;
 const requestedBasemap = new URLSearchParams(window.location.search).get('basemap');
-let activeBasemap = requestedBasemap || localStorage.getItem('oman-basemap') || 'operations';
-if (!BASEMAP_LAYERS[activeBasemap]) activeBasemap = 'operations';
+const hasRequestedBasemap = Boolean(requestedBasemap && BASEMAP_LAYERS[requestedBasemap]);
+let basemapAutoMode = !hasRequestedBasemap;
+let activeBasemap = hasRequestedBasemap ? requestedBasemap : automaticBasemapForZoom(HOME.zoom);
 
 const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
@@ -942,8 +948,9 @@ function closeBasemapMenu() {
   $('#basemapButton').setAttribute('aria-expanded', 'false');
 }
 
-function setBasemap(name) {
+function setBasemap(name, { manual = true, notify = true } = {}) {
   if (!BASEMAP_LAYERS[name]) return;
+  if (manual) basemapAutoMode = false;
   activeBasemap = name;
   const visibleLayerIds = new Set(BASEMAP_LAYERS[name]);
   const allLayerIds = new Set(Object.values(BASEMAP_LAYERS).flat());
@@ -952,11 +959,18 @@ function setBasemap(name) {
       map.setLayoutProperty(layerId, 'visibility', visibleLayerIds.has(layerId) ? 'visible' : 'none');
     }
   });
-  localStorage.setItem('oman-basemap', name);
   syncBasemapControls();
   closeBasemapMenu();
   const label = document.querySelector(`.basemap-option[data-basemap="${name}"] b`)?.textContent || name;
-  showMessage(`${label} basemap selected`);
+  if (notify) showMessage(`${label} basemap selected`);
+}
+
+function syncAutomaticBasemap() {
+  if (!basemapAutoMode || !map) return;
+  const desiredBasemap = automaticBasemapForZoom(map.getZoom());
+  if (desiredBasemap !== activeBasemap) {
+    setBasemap(desiredBasemap, { manual: false, notify: false });
+  }
 }
 
 function bindControls() {
@@ -1078,6 +1092,7 @@ function initMap() {
   });
   map.on('zoom', () => {
     setText('#mapZoom', `Z ${map.getZoom().toFixed(1)}`);
+    syncAutomaticBasemap();
   });
   bindControls();
 
