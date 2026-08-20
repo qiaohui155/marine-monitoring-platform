@@ -1076,6 +1076,45 @@ function initializeMapLayers() {
   }
 }
 
+function bindStableMapClick() {
+  const canvas = map.getCanvas();
+  let press = null;
+
+  canvas.addEventListener('mousedown', event => {
+    if (event.button !== 0) return;
+    const center = map.getCenter();
+    press = {
+      x: event.clientX,
+      y: event.clientY,
+      camera: {
+        center: [center.lng, center.lat],
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch()
+      }
+    };
+  }, true);
+
+  window.addEventListener('mouseup', event => {
+    if (!press || event.button !== 0) return;
+    const currentPress = press;
+    press = null;
+    const distance = Math.hypot(event.clientX - currentPress.x, event.clientY - currentPress.y);
+    if (distance > MAP_CLICK_TOLERANCE_PX) return;
+
+    // MapLibre may already have created pan inertia before emitting the click.
+    // Stop it and restore the camera after MapLibre finishes handling mouseup.
+    const restoreCamera = () => {
+      map.stop();
+      map.jumpTo(currentPress.camera);
+    };
+    restoreCamera();
+    requestAnimationFrame(() => requestAnimationFrame(restoreCamera));
+  }, true);
+
+  window.addEventListener('blur', () => { press = null; });
+}
+
 function initMap() {
   map = new maplibregl.Map({
     container: 'map',
@@ -1084,9 +1123,6 @@ function initMap() {
     zoom: HOME.zoom,
     minZoom: 3.5,
     maxZoom: 15,
-    // The operational screen uses fixed map navigation: users can select
-    // features and zoom, while search/home/track actions control positioning.
-    dragPan: false,
     // Ignore small hand movements during a normal left click. Intentional
     // dragging still works after the pointer moves beyond this threshold.
     clickTolerance: MAP_CLICK_TOLERANCE_PX,
@@ -1095,6 +1131,7 @@ function initMap() {
   // A double click on a dense vessel symbol used to zoom around the pointer,
   // which looked like the basemap moved after selecting a vessel.
   map.doubleClickZoom.disable();
+  bindStableMapClick();
   map.addControl(new maplibregl.NavigationControl({ showCompass:true }), 'top-right');
   map.addControl(new maplibregl.ScaleControl({ maxWidth:120, unit:'nautical' }), 'bottom-right');
   map.on('mousemove', event => {
