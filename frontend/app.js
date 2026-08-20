@@ -4,6 +4,7 @@ const VESSEL_ANIMATION_MS = 6000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const DETAILED_VESSEL_ZOOM = 9;
+const MAP_CLICK_TOLERANCE_PX = 12;
 const BASEMAP_LAYERS = {
   operations: ['osm'],
   street: ['osm-color'],
@@ -1083,8 +1084,14 @@ function initMap() {
     zoom: HOME.zoom,
     minZoom: 3.5,
     maxZoom: 15,
+    // Ignore small hand movements during a normal left click. Intentional
+    // dragging still works after the pointer moves beyond this threshold.
+    clickTolerance: MAP_CLICK_TOLERANCE_PX,
     attributionControl: true
   });
+  // A double click on a dense vessel symbol used to zoom around the pointer,
+  // which looked like the basemap moved after selecting a vessel.
+  map.doubleClickZoom.disable();
   map.addControl(new maplibregl.NavigationControl({ showCompass:true }), 'top-right');
   map.addControl(new maplibregl.ScaleControl({ maxWidth:120, unit:'nautical' }), 'bottom-right');
   map.on('mousemove', event => {
