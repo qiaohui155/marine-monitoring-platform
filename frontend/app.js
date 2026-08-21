@@ -36,6 +36,8 @@ let recentPollutionEvents = [];
 let labelsVisible = true;
 let selectedFeatureId = null;
 let selectedMmsi = null;
+let trackDisplayMode = 'all';
+let selectedTrackMmsi = null;
 let refreshTimer = null;
 let clockTimer = null;
 let vesselRefreshRunning = false;
@@ -977,6 +979,7 @@ async function loadOperationalLayers({ initial = false } = {}) {
       map.getSource('risk-areas')?.setData(riskData);
       map.getSource('suspicious')?.setData(suspiciousData);
       map.getSource('warnings')?.setData(warningData);
+      applyTrackDisplayMode();
     }
   } catch (error) {
     if (!initial) showMessage('One or more operational layers could not be refreshed');
@@ -1115,6 +1118,25 @@ function setLayerToggle(toggleId, group, visible) {
   setLayerGroupVisibility(group, visible);
 }
 
+function applyTrackDisplayMode() {
+  if (!map?.getLayer('track-lines')) return;
+  if (trackDisplayMode === 'selected' && selectedTrackMmsi) {
+    map.setFilter('track-lines', [
+      '==',
+      ['to-string', ['get', 'mmsi']],
+      String(selectedTrackMmsi)
+    ]);
+    return;
+  }
+  map.setFilter('track-lines', null);
+}
+
+function showAllTracks() {
+  trackDisplayMode = 'all';
+  selectedTrackMmsi = null;
+  applyTrackDisplayMode();
+}
+
 function activateView(view) {
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === view);
@@ -1127,7 +1149,7 @@ function activateView(view) {
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', false);
     setLayerToggle('#warningLayerToggle', 'warnings', false);
   } else if (view === 'tracks') {
-    if (map.getLayer('track-lines')) map.setFilter('track-lines', null);
+    showAllTracks();
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', true);
     setLayerToggle('#pollutionLayerToggle', 'pollution', false);
@@ -1152,9 +1174,11 @@ function showSelectedTrack() {
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === 'tracks');
   });
-  setLayerToggle('#trackLayerToggle', 'tracks', true);
   if (!map.getLayer('track-lines')) return showMessage('The map layers are still loading');
-  map.setFilter('track-lines', ['==', ['get', 'mmsi'], selectedMmsi]);
+  trackDisplayMode = 'selected';
+  selectedTrackMmsi = String(track.properties.mmsi);
+  applyTrackDisplayMode();
+  setLayerToggle('#trackLayerToggle', 'tracks', true);
   const bounds = new maplibregl.LngLatBounds();
   track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
   map.fitBounds(bounds, { padding: 80, maxZoom: 9, duration: 900 });
@@ -1248,7 +1272,7 @@ function bindControls() {
     setLayerGroupVisibility('vessels', event.currentTarget.checked);
   });
   $('#trackLayerToggle').addEventListener('change', event => {
-    if (event.currentTarget.checked && map.getLayer('track-lines')) map.setFilter('track-lines', null);
+    if (event.currentTarget.checked) showAllTracks();
     setLayerGroupVisibility('tracks', event.currentTarget.checked);
   });
   $('#pollutionLayerToggle').addEventListener('change', event => setLayerGroupVisibility('pollution', event.currentTarget.checked));
@@ -1316,6 +1340,7 @@ function initializeMapLayers() {
     addVesselLayers();
     mapLayersReady = true;
     applyTypeFilter();
+    applyTrackDisplayMode();
   } catch (error) {
     console.error('Unable to initialize business map layers', error);
   } finally {
