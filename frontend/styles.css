@@ -580,6 +580,34 @@ body.panel-dragging, body.panel-dragging * { cursor: grabbing !important; user-s
 .business-dialog .watch-grid strong { margin:11px 0 6px; color:#2468b7; font-size:25px; }
 .business-dialog .watch-grid small { color:#7e8b9c; font-size:12px; letter-spacing:.02em; }
 
+.track-catalog { display:grid; gap:14px; }
+.track-catalog[hidden] { display:none; }
+.track-catalog-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; background:#f5f8fc; border:1px solid #dce6f0; border-radius:4px; }
+.track-catalog-toolbar div { display:grid; gap:3px; }
+.track-catalog-toolbar strong { color:#225f9f; font-size:17px; }
+.track-catalog-toolbar span { color:#6c7d91; font-size:12px; }
+.track-catalog-toolbar button { min-height:36px; padding:0 14px; color:#fff; background:#2f76d2; border:1px solid #2f76d2; border-radius:3px; font-size:12px; font-weight:750; cursor:pointer; }
+.track-catalog-toolbar button:hover { background:#245fae; }
+.track-catalog-search { display:grid; grid-template-columns:110px 1fr; align-items:center; gap:12px; color:#394b60; font-size:13px; font-weight:700; }
+.track-catalog-search input { width:100%; min-height:39px; padding:0 12px; color:#26384c; background:#fff; border:1px solid #c9d8e8; border-radius:3px; font:inherit; font-weight:500; outline:none; }
+.track-catalog-search input:focus { border-color:#397ed2; box-shadow:0 0 0 2px rgba(57,126,210,.12); }
+.track-catalog-table { min-width:690px; overflow:hidden; border:1px solid #d8e3ef; border-radius:4px; }
+.track-catalog-head, .track-catalog-row { display:grid; grid-template-columns:minmax(190px,1.4fr) 90px minmax(190px,1.25fr) 70px 100px; align-items:center; column-gap:12px; }
+.track-catalog-head { min-height:38px; padding:0 14px; color:#61748a; background:#edf3f8; font-size:11px; font-weight:800; letter-spacing:.035em; }
+.track-catalog-list { max-height:310px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#a8bfd8 #f2f6fa; }
+.track-catalog-row { min-height:62px; padding:8px 14px; color:#34465a; border-top:1px solid #e3eaf2; font-size:12px; }
+.track-catalog-row:first-child { border-top:0; }
+.track-catalog-row:hover { background:#f6f9fd; }
+.track-catalog-identity { display:grid; gap:3px; min-width:0; }
+.track-catalog-identity strong { overflow:hidden; color:#245f9f; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+.track-catalog-identity small, .track-catalog-period small { display:block; color:#78899c; font-size:11px; }
+.track-catalog-type { font-weight:700; }
+.track-catalog-period { line-height:1.35; }
+.track-catalog-points { color:#2c65a8; font-size:14px; font-weight:800; }
+.track-catalog-row button { min-height:32px; color:#2e6fb9; background:#fff; border:1px solid #a9c7e8; border-radius:3px; font-size:11px; font-weight:800; cursor:pointer; }
+.track-catalog-row button:hover { color:#fff; background:#2f76d2; border-color:#2f76d2; }
+.track-catalog-list .empty-row { padding:30px 16px; color:#78899c; text-align:center; }
+
 .business-dialog .summary-description { margin:0 0 18px; color:#66768a; font-size:13px; line-height:1.55; }
 .business-dialog .summary-grid { gap:12px; }
 .business-dialog .summary-grid article { min-height:130px; padding:17px; background:#f5f8fc; border-color:#dce6f0; }

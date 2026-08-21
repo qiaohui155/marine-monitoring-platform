@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260820-requirement-workflows" />
+  <link rel="stylesheet" href="styles.css?v=20260821-track-catalog" />
 </head>
 <body>
   <main class="platform-shell">
@@ -241,7 +241,20 @@
         <div class="floating-panel-body">
           <div class="business-section-intro"><div><strong>Monitoring Focus</strong><span>Quick access to current vessel activity in priority coastal and port areas.</span></div><em>Gulf of Oman</em></div>
           <div class="panel-view-actions"><button type="button" class="view-action active" data-view="vessels">LIVE VESSELS</button><button type="button" class="view-action" data-view="tracks">HISTORICAL TRACKS</button></div>
-          <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>SOHAR</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>MUSCAT</span><strong>LIVE</strong><small>Coastal watch</small></article><article><span>DUQM</span><strong>LIVE</strong><small>Offshore watch</small></article></div>
+          <div data-watch-content="vessels">
+            <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>SOHAR</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>MUSCAT</span><strong>LIVE</strong><small>Coastal watch</small></article><article><span>DUQM</span><strong>LIVE</strong><small>Offshore watch</small></article></div>
+          </div>
+          <div class="track-catalog" data-watch-content="tracks" hidden>
+            <div class="track-catalog-toolbar">
+              <div><strong id="trackCatalogCount">0 vessels</strong><span>Select any vessel to display only its historical track.</span></div>
+              <button type="button" id="showAllTrackCatalog">SHOW ALL TRACKS</button>
+            </div>
+            <label class="track-catalog-search"><span>Search vessel</span><input id="trackCatalogSearch" type="search" placeholder="Ship name or MMSI" autocomplete="off"></label>
+            <div class="track-catalog-table" role="table" aria-label="Vessels with historical tracks">
+              <div class="track-catalog-head" role="row"><span>VESSEL</span><span>TYPE</span><span>TRACK PERIOD</span><span>POINTS</span><span>ACTION</span></div>
+              <div class="track-catalog-list" id="trackCatalogList"><div class="empty-row">Loading historical-track vessels…</div></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -366,6 +379,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260821-single-vessel-track"></script>
+  <script src="app.js?v=20260821-track-catalog"></script>
 </body>
 </html>

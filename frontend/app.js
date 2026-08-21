@@ -613,6 +613,7 @@ function refreshRequirementModules() {
   renderSourceAnalysis();
   renderAlertCenter();
   renderEvidenceReadiness();
+  renderTrackCatalog();
 }
 
 function locateFeature(feature, message, { warning = false } = {}) {
@@ -1137,11 +1138,65 @@ function showAllTracks() {
   applyTrackDisplayMode();
 }
 
+function setOperationalWatchContent(view) {
+  if (!['vessels', 'tracks'].includes(view)) return;
+  document.querySelectorAll('[data-watch-content]').forEach(section => {
+    section.hidden = section.dataset.watchContent !== view;
+  });
+  if (view === 'tracks') renderTrackCatalog();
+}
+
+function trackFeatureByMmsi(mmsi) {
+  return (trackData.features || []).find(feature => String(feature.properties?.mmsi) === String(mmsi));
+}
+
+function renderTrackCatalog() {
+  const container = $('#trackCatalogList');
+  if (!container) return;
+  const query = ($('#trackCatalogSearch')?.value || '').trim().toLowerCase();
+  const tracks = (trackData.features || [])
+    .filter(feature => {
+      const properties = feature.properties || {};
+      return !query || `${properties.ship_name || ''} ${properties.mmsi || ''} ${properties.ship_type || ''}`.toLowerCase().includes(query);
+    })
+    .sort((left, right) => String(left.properties?.ship_name || left.properties?.mmsi || '').localeCompare(String(right.properties?.ship_name || right.properties?.mmsi || '')));
+  const total = (trackData.features || []).length;
+  setText('#trackCatalogCount', query ? `${tracks.length} of ${total} vessels` : `${total} vessels with tracks`);
+  container.innerHTML = tracks.length ? tracks.map(feature => {
+    const properties = feature.properties || {};
+    const name = properties.ship_name || `MMSI ${properties.mmsi || 'Unknown'}`;
+    const start = formatDate(properties.start_time);
+    const end = formatDate(properties.end_time);
+    return `<div class="track-catalog-row" role="row"><div class="track-catalog-identity"><strong>${escapeHtml(name)}</strong><small>MMSI ${escapeHtml(properties.mmsi)}</small></div><span class="track-catalog-type">${escapeHtml(properties.ship_type || 'Unknown')}</span><span class="track-catalog-period">${escapeHtml(start)}<small>to ${escapeHtml(end)}</small></span><strong class="track-catalog-points">${numberValue(properties.point_count).toLocaleString()}</strong><button type="button" data-track-mmsi="${escapeHtml(properties.mmsi)}">SHOW TRACK</button></div>`;
+  }).join('') : '<div class="empty-row">No vessels match this search.</div>';
+}
+
+function displaySingleTrack(track, { closeCatalog = false } = {}) {
+  if (!track?.geometry?.coordinates?.length) return showMessage('This vessel has no valid historical track');
+  if (!map.getLayer('track-lines')) return showMessage('The map layers are still loading');
+  const properties = track.properties || {};
+  const mmsi = String(properties.mmsi || '');
+  trackDisplayMode = 'selected';
+  selectedTrackMmsi = mmsi;
+  applyTrackDisplayMode();
+  setLayerToggle('#trackLayerToggle', 'tracks', true);
+  document.querySelectorAll('[data-view]').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.view === 'tracks');
+  });
+  setOperationalWatchContent('tracks');
+  const bounds = new maplibregl.LngLatBounds();
+  track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
+  map.fitBounds(bounds, { padding: 80, maxZoom: 9, duration: 900 });
+  if (closeCatalog) floatingPanelManager?.hide('operational-watch');
+  showMessage(`Showing only ${properties.ship_name || mmsi}'s historical track`);
+}
+
 function activateView(view) {
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === view);
   });
   if (view === 'vessels') {
+    setOperationalWatchContent('vessels');
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', false);
     setLayerToggle('#pollutionLayerToggle', 'pollution', false);
@@ -1149,6 +1204,7 @@ function activateView(view) {
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', false);
     setLayerToggle('#warningLayerToggle', 'warnings', false);
   } else if (view === 'tracks') {
+    setOperationalWatchContent('tracks');
     showAllTracks();
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', true);
@@ -1168,21 +1224,9 @@ function activateView(view) {
 
 function showSelectedTrack() {
   if (!selectedMmsi) return showMessage('Select a vessel first');
-  const track = trackData.features.find(feature => String(feature.properties.mmsi) === String(selectedMmsi));
+  const track = trackFeatureByMmsi(selectedMmsi);
   if (!track) return showMessage('No historical track is available for this vessel');
-
-  document.querySelectorAll('[data-view]').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.view === 'tracks');
-  });
-  if (!map.getLayer('track-lines')) return showMessage('The map layers are still loading');
-  trackDisplayMode = 'selected';
-  selectedTrackMmsi = String(track.properties.mmsi);
-  applyTrackDisplayMode();
-  setLayerToggle('#trackLayerToggle', 'tracks', true);
-  const bounds = new maplibregl.LngLatBounds();
-  track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
-  map.fitBounds(bounds, { padding: 80, maxZoom: 9, duration: 900 });
-  showMessage(`Showing historical track for ${track.properties.ship_name || selectedMmsi}`);
+  displaySingleTrack(track);
 }
 
 function syncBasemapControls() {
@@ -1281,6 +1325,17 @@ function bindControls() {
   $('#warningLayerToggle').addEventListener('change', event => setLayerGroupVisibility('warnings', event.currentTarget.checked));
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
+  });
+  $('#trackCatalogSearch')?.addEventListener('input', renderTrackCatalog);
+  $('#showAllTrackCatalog')?.addEventListener('click', () => {
+    activateView('tracks');
+    showMessage(`Showing all ${(trackData.features || []).length} historical vessel tracks`);
+  });
+  $('#trackCatalogList')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-track-mmsi]');
+    if (!button) return;
+    const track = trackFeatureByMmsi(button.dataset.trackMmsi);
+    if (track) displaySingleTrack(track, { closeCatalog: true });
   });
   $('#incidentStatusFilter')?.addEventListener('change', applyIncidentFilters);
   $('#incidentRiskFilter')?.addEventListener('change', applyIncidentFilters);
