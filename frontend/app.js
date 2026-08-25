@@ -771,10 +771,10 @@ function updateDashboardVisuals(summary) {
   const suspicious = summary.suspicious_ships || {};
   const warnings = summary.warnings || {};
 
-  setText('#trackedPoints', `Historical points: ${numberValue(tracks.points).toLocaleString()}`);
-  setText('#affectedArea', `Affected area: ${numberValue(pollution.total_area_km2).toFixed(2)} km²`);
-  setText('#statRiskAreas', `Risk areas: ${numberValue(riskAreas.total).toLocaleString()}`);
-  setText('#highRiskShips', `High risk: ${highRiskCount(suspicious.by_level).toLocaleString()}`);
+  setText('#trackedPoints', numberValue(tracks.points).toLocaleString());
+  setText('#affectedArea', `${numberValue(pollution.total_area_km2).toFixed(2)} km²`);
+  setText('#statRiskAreas', numberValue(riskAreas.total).toLocaleString());
+  setText('#highRiskShips', highRiskCount(suspicious.by_level).toLocaleString());
 
   const warningTotal = numberValue(warnings.total);
   const suspectTotal = numberValue(suspicious.total);
@@ -792,6 +792,35 @@ function updateDashboardVisuals(summary) {
   renderStatusBars(pollution.by_status);
   renderRecentEvents(summary.recent_pollution_events);
   renderFootprintChart(summary.recent_pollution_events);
+}
+
+function updateAisMotionStatus(motion = {}) {
+  const total = numberValue(motion.total_vessels);
+  const refreshed = numberValue(motion.recently_refreshed);
+  const moving = numberValue(motion.moving_vessels);
+  const stationary = numberValue(motion.stationary_vessels);
+  const route = numberValue(motion.route_following);
+  const local = numberValue(motion.local_movement);
+  const interval = numberValue(motion.refresh_seconds) || Math.round(AUTO_REFRESH_MS / 1000);
+  const isLive = motion.status === 'live' && total > 0 && refreshed === total;
+
+  setText('#motionRefreshed', `${refreshed.toLocaleString()} / ${total.toLocaleString()}`);
+  setText('#motionRefreshedNote', isLive ? 'All vessel timestamps are current' : 'Some vessel updates are delayed');
+  setText('#motionMoving', moving.toLocaleString());
+  setText('#motionStationary', stationary.toLocaleString());
+  setText('#motionInterval', `${interval} s`);
+  setText('#motionRoute', route.toLocaleString());
+  setText('#motionLocal', local.toLocaleString());
+  setText('#motionStationaryMode', stationary.toLocaleString());
+  setText('#motionLatestUpdate', `Latest AIS update: ${formatDate(motion.latest_update)}`);
+  setText('#motionFooterStatus', `Moving: ${moving.toLocaleString()} · Stationary: ${stationary.toLocaleString()}`);
+
+  const badge = $('#motionStatusBadge');
+  if (badge) {
+    badge.textContent = isLive ? `LIVE · ${interval} s` : 'UPDATE DELAYED';
+    badge.classList.toggle('motion-delayed', !isLive);
+  }
+  if (isLive) setConnection('connected', `Live AIS · ${total.toLocaleString()} · ${interval} s`);
 }
 
 function updateSummary(data) {
@@ -1002,6 +1031,7 @@ async function loadDashboard() {
     $('#statSuspiciousShips').textContent = Number(summary.suspicious_ships.total).toLocaleString();
     $('#statWarnings').textContent = Number(summary.warnings.total).toLocaleString();
     updateDashboardVisuals(summary);
+    updateAisMotionStatus(summary.ais_motion);
   } catch (error) {
     console.error(error);
   }

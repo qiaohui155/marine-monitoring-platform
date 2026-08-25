@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, HTTPException
 from psycopg import Error as PsycopgError
 
@@ -30,6 +32,73 @@ def dashboard_summary() -> dict:
                 )
                 ships = dict(cursor.fetchone())
                 ship_types = _grouped_counts(cursor, "ship_position", "ship_type")
+
+                refresh_seconds = max(
+                    5,
+                    min(3600, int(os.getenv("SIMULATED_AIS_UPDATE_SECONDS", "15"))),
+                )
+                max_join_metres = max(
+                    100.0,
+                    min(
+                        50000.0,
+                        float(os.getenv("SIMULATED_AIS_MAX_JOIN_METERS", "5000")),
+                    ),
+                )
+                cursor.execute(
+                    """
+                    WITH classified AS (
+                        SELECT
+                            position.update_time,
+                            CASE
+                                WHEN state.movement_enabled = true
+                                     AND COALESCE(position.speed, 0) > 0.5
+                                     AND state.route_id IS NOT NULL
+                                     AND state.motion_mode <> 'ANCHORED'
+                                     AND state.simulated_speed > 0
+                                     AND COALESCE(state.route_distance_m, 0) <= %s
+                                    THEN 'route'
+                                WHEN state.movement_enabled = true
+                                     AND COALESCE(position.speed, 0) > 0.5
+                                    THEN 'local'
+                                ELSE 'stationary'
+                            END AS motion_class
+                        FROM public.ship_position AS position
+                        LEFT JOIN public.ship_motion_state AS state
+                          ON state.mmsi = position.mmsi
+                    )
+                    SELECT
+                        count(*) AS total_vessels,
+                        count(*) FILTER (
+                            WHERE update_time >=
+                                (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+                                - make_interval(secs => %s * 3)
+                        ) AS recently_refreshed,
+                        count(*) FILTER (
+                            WHERE motion_class IN ('route', 'local')
+                        ) AS moving_vessels,
+                        count(*) FILTER (
+                            WHERE motion_class = 'stationary'
+                        ) AS stationary_vessels,
+                        count(*) FILTER (
+                            WHERE motion_class = 'route'
+                        ) AS route_following,
+                        count(*) FILTER (
+                            WHERE motion_class = 'local'
+                        ) AS local_movement,
+                        max(update_time) AS latest_update
+                    FROM classified
+                    """,
+                    (max_join_metres, refresh_seconds),
+                )
+                ais_motion = dict(cursor.fetchone())
+                ais_motion["refresh_seconds"] = refresh_seconds
+                ais_motion["status"] = (
+                    "live"
+                    if ais_motion["total_vessels"] > 0
+                    and ais_motion["recently_refreshed"]
+                    == ais_motion["total_vessels"]
+                    else "delayed"
+                )
 
                 cursor.execute(
                     "SELECT count(DISTINCT mmsi) AS vessels, count(*) AS points "
@@ -86,6 +155,7 @@ def dashboard_summary() -> dict:
     return json_safe(
         {
             "ships": {**ships, "by_type": ship_types},
+            "ais_motion": ais_motion,
             "tracks": tracks,
             "pollution_events": pollution,
             "risk_areas": risk_areas,

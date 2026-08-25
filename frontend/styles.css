@@ -319,7 +319,7 @@ body.panel-dragging, body.panel-dragging * { cursor: grabbing !important; user-s
 .business-dialog .floating-panel-body { flex:1; padding:24px; color:#303c48; background:#fff; border-radius:0 0 4px 4px; font-size:14px; line-height:1.45; }
 .business-dialog-01 { width:min(680px,calc(100vw - 80px)); min-height:min(520px,calc(100vh - 110px)); }
 .business-dialog-02 { width:min(760px,calc(100vw - 80px)); min-height:min(560px,calc(100vh - 110px)); }
-.business-dialog-03 { width:min(720px,calc(100vw - 80px)); min-height:min(520px,calc(100vh - 110px)); }
+.business-dialog-03 { width:min(820px,calc(100vw - 80px)); min-height:min(680px,calc(100vh - 96px)); }
 .business-dialog-05 { width:min(780px,calc(100vw - 80px)); min-height:min(520px,calc(100vh - 110px)); }
 .incident-business-dialog { width:min(920px,calc(100vw - 80px)); min-height:min(640px,calc(100vh - 110px)); }
 .business-dialog-07 { width:min(780px,calc(100vw - 80px)); min-height:min(540px,calc(100vh - 110px)); }
@@ -549,6 +549,29 @@ body.panel-dragging, body.panel-dragging * { cursor: grabbing !important; user-s
 .business-dialog .system-status-list i.online { width:8px; height:8px; }
 .business-dialog .system-status-list b { color:#216cba; font-size:13px; }
 
+.ais-motion-overview { display:grid; grid-template-columns:repeat(4,1fr); gap:11px; margin-bottom:20px; }
+.ais-motion-overview article { min-width:0; min-height:112px; padding:15px; background:linear-gradient(145deg,#f4f8fd,#edf4fc); border:1px solid #d7e4f2; border-radius:5px; }
+.ais-motion-overview span { display:block; color:#607188; font-size:12px; font-weight:750; letter-spacing:.025em; text-transform:uppercase; }
+.ais-motion-overview strong { display:block; margin:10px 0 7px; color:#2169c2; font-size:26px; line-height:1; white-space:nowrap; }
+.ais-motion-overview small { display:block; color:#7b899b; font-size:11px; line-height:1.4; }
+.motion-mode-heading, .motion-service-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:0 0 10px; }
+.motion-mode-heading strong, .motion-service-heading strong { color:#2e4054; font-size:15px; }
+.motion-mode-heading span, .motion-service-heading span { color:#7a899a; font-size:12px; }
+.motion-mode-list { display:grid; gap:9px; margin-bottom:20px; }
+.motion-mode-list article { min-height:69px; display:grid; grid-template-columns:43px 1fr auto; align-items:center; gap:13px; padding:10px 15px; background:#f8fafc; border:1px solid #dfe7f0; border-radius:5px; }
+.motion-mode-list article > i { width:37px; height:37px; display:grid; place-items:center; border-radius:50%; font-size:20px; font-style:normal; font-weight:800; }
+.motion-mode-list article.route-mode > i { color:#266fc7; background:#e5f0ff; }
+.motion-mode-list article.local-mode > i { color:#168c83; background:#e1f5f1; }
+.motion-mode-list article.stationary-mode > i { color:#8a6a2b; background:#fff3d8; font-size:13px; }
+.motion-mode-list article strong { display:block; color:#34475b; font-size:14px; }
+.motion-mode-list article small { display:block; margin-top:3px; color:#788799; font-size:12px; line-height:1.35; }
+.motion-mode-list article > b { min-width:70px; color:#245f9f; font-size:20px; text-align:right; }
+.motion-service-heading { margin-top:2px; }
+.motion-service-heading span { text-align:right; }
+.business-dialog-03 .system-status-list { grid-template-columns:repeat(3,1fr); gap:9px; }
+.business-dialog-03 .system-status-list div { min-height:54px; }
+#motionStatusBadge.motion-delayed { color:#9a6419; background:#fff6df; border-color:#edd69c; }
+
 .business-dialog #activityTrend { height:260px; margin-top:12px; }
 .business-dialog .chart-grid path { stroke:#d8e3ef; }
 .business-dialog .trend-line { stroke:#2f76d2; stroke-width:3; }
@@ -708,6 +731,9 @@ body.panel-dragging, body.panel-dragging * { cursor: grabbing !important; user-s
   .detail-panel { right:60px; width:min(300px,calc(100vw - 84px)); }
   .summary-grid { grid-template-columns:1fr 1fr; }
   .readiness-grid, .evidence-checklist { grid-template-columns:1fr 1fr; }
+  .ais-motion-overview { grid-template-columns:1fr 1fr; }
+  .motion-mode-heading, .motion-service-heading { align-items:flex-start; flex-direction:column; gap:4px; }
+  .motion-service-heading span { text-align:left; }
   .alert-layout, .event-context-grid { grid-template-columns:1fr; }
   .workflow-list > div { grid-template-columns:1fr auto; padding:10px 12px; }
   .workflow-list > div em { grid-column:1 / -1; justify-self:start; }

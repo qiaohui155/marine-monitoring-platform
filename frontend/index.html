@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260821-track-catalog" />
+  <link rel="stylesheet" href="styles.css?v=20260825-ais-motion-status" />
 </head>
 <body>
   <main class="platform-shell">
@@ -157,11 +157,25 @@
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="business-section-intro"><div><strong>Service Readiness</strong><span>Current connectivity and refresh information for the local monitoring platform.</span></div><em>Automatic diagnostics</em></div>
+          <div class="business-section-intro"><div><strong>Real-Time AIS Motion Status</strong><span>Live movement and refresh statistics calculated from the current PostGIS vessel data.</span></div><em id="motionStatusBadge">Checking service</em></div>
+          <div class="ais-motion-overview" aria-label="AIS movement overview">
+            <article><span>Refreshed vessels</span><strong id="motionRefreshed">—</strong><small id="motionRefreshedNote">Waiting for update status</small></article>
+            <article><span>Coordinates moving</span><strong id="motionMoving">—</strong><small>Position changes detected by motion state</small></article>
+            <article><span>Stationary vessels</span><strong id="motionStationary">—</strong><small>Position fixed, timestamp refreshed</small></article>
+            <article><span>Refresh interval</span><strong id="motionInterval">—</strong><small>Automatic database update cycle</small></article>
+          </div>
+
+          <div class="motion-mode-heading"><strong>Vessel Movement Rules</strong><span>Each vessel follows one of the following update modes.</span></div>
+          <div class="motion-mode-list">
+            <article class="route-mode"><i>↝</i><div><strong>Route Following</strong><small>Vessels close to reviewed offshore routes move forward along the route.</small></div><b id="motionRoute">—</b></article>
+            <article class="local-mode"><i>≈</i><div><strong>Local Sea Movement</strong><small>Unmatched vessels move slowly near their original offshore position.</small></div><b id="motionLocal">—</b></article>
+            <article class="stationary-mode"><i>●</i><div><strong>Stationary Refresh</strong><small>Anchored or stopped vessels keep their coordinates while AIS time is refreshed.</small></div><b id="motionStationaryMode">—</b></article>
+          </div>
+
+          <div class="motion-service-heading"><strong>Platform Services</strong><span id="motionLatestUpdate">Latest AIS update: —</span></div>
           <div class="system-status-list">
           <div><span><i class="online"></i>PostGIS database</span><b>ONLINE</b></div>
           <div><span><i class="online"></i>FastAPI service</span><b>ONLINE</b></div>
-          <div><span><i class="online"></i>AIS refresh cycle</span><b>15 SEC</b></div>
           <div><span>Tracked history</span><b id="trackedPoints">—</b></div>
           <div><span>Affected area</span><b id="affectedArea">—</b></div>
           <div><span>High-risk vessels</span><b id="highRiskShips">—</b></div>
@@ -370,7 +384,7 @@
       <div class="map-message" id="mapMessage"></div>
 
       <footer class="statusbar">
-        <span id="mouseCoordinates">Move the pointer over the map</span><span>WGS 84 / EPSG:4326</span><span id="apiCount">API records: —</span><span id="refreshStatus">Auto-refresh: every 15 s</span><span class="status-spacer"></span><span class="live-status"><i></i>LOCAL POSTGIS CONNECTION</span>
+        <span id="mouseCoordinates">Move the pointer over the map</span><span>WGS 84 / EPSG:4326</span><span id="apiCount">API records: —</span><span id="refreshStatus">Auto-refresh: every 15 s</span><span id="motionFooterStatus">Motion: waiting for statistics</span><span class="status-spacer"></span><span class="live-status"><i></i>LOCAL POSTGIS CONNECTION</span>
       </footer>
     </section>
 
@@ -379,6 +393,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260825-dashboard-realtime-ais"></script>
+  <script src="app.js?v=20260825-ais-motion-status"></script>
 </body>
 </html>
