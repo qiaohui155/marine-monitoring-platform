@@ -470,7 +470,8 @@ def _settings() -> dict[str, Any]:
         )
     return {
         "target_database": target_database,
-        "update_seconds": _int_setting("SIMULATED_AIS_UPDATE_SECONDS", 15, 5, 3600),
+        "update_seconds": _int_setting("SIMULATED_AIS_UPDATE_SECONDS", 5, 5, 3600),
+        "movement_scale": _float_setting("SIMULATED_AIS_MOVEMENT_SCALE", 1.0, 0.1, 20.0),
         "track_seconds": _int_setting("SIMULATED_TRACK_SECONDS", 120, 30, 86400),
         "track_min_metres": _float_setting("SIMULATED_TRACK_MIN_METERS", 200.0, 0.0, 100000.0),
         "max_vessels": _int_setting("SIMULATED_AIS_MAX_VESSELS", 5000, 1, 5000),
@@ -546,7 +547,7 @@ def _calculate_route_positions(cursor: Any, settings: dict[str, Any]) -> list[di
         (
             settings["max_join_metres"],
             settings["max_vessels"],
-            settings["update_seconds"],
+            settings["update_seconds"] * settings["movement_scale"],
         ),
     )
     return [dict(row) for row in cursor.fetchall()]
@@ -557,7 +558,7 @@ def _calculate_local_positions(cursor: Any, settings: dict[str, Any]) -> list[di
         LOCAL_POSITIONS_SQL,
         (
             settings["max_join_metres"],
-            settings["update_seconds"],
+            settings["update_seconds"] * settings["movement_scale"],
         ),
     )
     return [dict(row) for row in cursor.fetchall()]
@@ -679,9 +680,10 @@ def main() -> None:
     _configure_logging()
     settings = _settings()
     LOGGER.info(
-        "Simulated AIS service starting for database %s; interval=%ss; maximum vessels=%s.",
+        "Simulated AIS service starting for database %s; interval=%ss; movement scale=%.2fx; maximum vessels=%s.",
         settings["target_database"],
         settings["update_seconds"],
+        settings["movement_scale"],
         settings["max_vessels"],
     )
 

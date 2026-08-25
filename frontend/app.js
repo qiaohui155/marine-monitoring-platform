@@ -1,8 +1,8 @@
 const API_BASE = 'http://127.0.0.1:8000';
-const AUTO_REFRESH_MS = 15000;
-// PostgreSQL receives a new simulated AIS position every 15 seconds. Animate
-// most of that interval so routed vessels appear to move continuously.
-const VESSEL_ANIMATION_MS = 12000;
+const AUTO_REFRESH_MS = 5000;
+// PostgreSQL receives a new AIS position every five seconds. Interpolate most
+// of that interval so successive coordinates appear as continuous movement.
+const VESSEL_ANIMATION_MS = 4200;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const DETAILED_VESSEL_ZOOM = 9;
@@ -970,8 +970,9 @@ async function loadVessels({ initial = false } = {}) {
     const latestUpdateMs = latestVesselUpdateMs(vesselData);
     const dataIsFresh = latestUpdateMs !== null
       && Math.abs(Date.now() - latestUpdateMs) <= AIS_FRESHNESS_MS;
-    setConnection(dataIsFresh ? 'connected' : 'stale', dataIsFresh ? 'Live AIS · 15 s' : 'AIS stale · 15 s');
-    updateRefreshStatus(`Last refresh: ${new Date().toLocaleTimeString()} · every 15 s`);
+    const refreshSeconds = Math.round(AUTO_REFRESH_MS / 1000);
+    setConnection(dataIsFresh ? 'connected' : 'stale', dataIsFresh ? `Live AIS · ${refreshSeconds} s` : `AIS stale · ${refreshSeconds} s`);
+    updateRefreshStatus(`Last refresh: ${new Date().toLocaleTimeString()} · every ${refreshSeconds} s`);
     loadingScreen.classList.add('hidden');
   } catch (error) {
     setConnection('failed', 'API Offline');

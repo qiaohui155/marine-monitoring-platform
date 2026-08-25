@@ -11,7 +11,7 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Historical vessel tracks
 - Pollution events, sea-risk areas, suspected vessels, and warning areas
 - Dynamic dashboard statistics, risk signals, incident status, and recent events
-- Automatic API refresh every 15 seconds
+- Automatic API refresh every 5 seconds
 - Stable map selection: small pointer movement during a click no longer pans the map, and double-click zoom is disabled
 - Smooth movement from the previous real AIS coordinate to each newly received coordinate
 - Four switchable basemaps, including pure satellite imagery and a satellite hybrid with boundaries and place labels

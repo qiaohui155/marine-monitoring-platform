@@ -35,7 +35,7 @@ def dashboard_summary() -> dict:
 
                 refresh_seconds = max(
                     5,
-                    min(3600, int(os.getenv("SIMULATED_AIS_UPDATE_SECONDS", "15"))),
+                    min(3600, int(os.getenv("SIMULATED_AIS_UPDATE_SECONDS", "5"))),
                 )
                 max_join_metres = max(
                     100.0,

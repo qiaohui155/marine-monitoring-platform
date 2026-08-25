@@ -23,7 +23,7 @@ Only new coordinates received from the provider are animated on the map.
 
 For the local demonstration database, set `SIMULATED_AIS_AUTO_START=true` and
 `SIMULATED_AIS_TARGET_DB=Oman_Oil_Monitor`. The same platform shortcut then refreshes
-all simulated vessels every 15 seconds. Vessels close to reviewed routes follow those
+all simulated vessels every 5 seconds. Vessels close to reviewed routes follow those
 routes; the others use small local sea-position circuits. Filtered history is written
 only for route-reviewed vessels. Double-click `stop_simulated_ais.bat` before changing
 routes or switching branches.
