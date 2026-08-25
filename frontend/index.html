@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260825-ais-motion-status" />
+  <link rel="stylesheet" href="styles.css?v=20260825-light-vessel-details" />
 </head>
 <body>
   <main class="platform-shell">
@@ -367,16 +367,23 @@
         </div>
       </section>
 
-      <aside class="detail-panel" id="detailPanel" aria-live="polite">
-        <button class="detail-close" id="detailClose" type="button" aria-label="Close details">×</button>
-        <div class="detail-top"><div class="detail-ship-icon" id="detailShipIcon">▲</div><div><span class="status-label"><i></i>DATABASE VESSEL</span><h2 id="detailName">Select a vessel</h2><p id="detailIdentity">Click a ship symbol on the map</p></div></div>
-        <div class="detail-body">
+      <section class="floating-panel business-dialog vessel-detail-dialog" id="detailPanel" data-floating-panel="ship-details" data-centered="true" aria-hidden="true" aria-live="polite">
+        <header class="floating-panel-header" data-drag-handle>
+          <div class="business-dialog-title vessel-detail-title"><span>SHIP</span><div><h2 id="detailName">VESSEL DETAILS</h2><p id="detailIdentity">Click a ship symbol on the map</p></div></div>
+          <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize" aria-label="Minimize vessel details">−</button><button type="button" data-panel-hide title="Hide" aria-label="Hide vessel details">□</button><button type="button" data-panel-close id="detailClose" title="Close" aria-label="Close vessel details">×</button></div>
+        </header>
+        <div class="floating-panel-body detail-body">
+          <div class="vessel-status-card" id="detailStatusCard">
+            <div class="detail-ship-icon" id="detailShipIcon">▲</div>
+            <div><span>Navigation status</span><strong id="detailStatus">—</strong><small id="detailStatusNote">Waiting for vessel information</small></div>
+            <em id="detailStatusBadge">—</em>
+          </div>
           <div class="detail-update"><span>Latest database position</span><strong id="detailTime">—</strong></div>
           <div class="detail-metrics"><article><span>Speed</span><strong id="detailSpeed">—</strong></article><article><span>Course</span><strong id="detailCourse">—</strong></article><article><span>Latitude</span><strong id="detailLatitude">—</strong></article><article><span>Longitude</span><strong id="detailLongitude">—</strong></article></div>
           <dl class="detail-list"><div><dt>Vessel type</dt><dd id="detailType">—</dd></div><div><dt>MMSI</dt><dd id="detailMmsi">—</dd></div><div><dt>Database ID</dt><dd id="detailId">—</dd></div></dl>
           <button class="panel-action" id="showTrackButton" type="button">SHOW HISTORICAL TRACK</button>
         </div>
-      </aside>
+      </section>
 
       <section class="loading-screen" id="loadingScreen">
         <div class="radar-loader"><i></i><b></b></div><strong>Loading vessel positions</strong><span>Reading ship_position through the local API…</span>
@@ -393,6 +400,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260825-five-second-ais"></script>
+  <script src="app.js?v=20260825-draggable-vessel-details"></script>
 </body>
 </html>

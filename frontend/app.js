@@ -853,10 +853,10 @@ function refreshSelectedVessel() {
     feature => String(feature.properties.mmsi) === String(selectedMmsi)
   );
   if (selected) {
-    selectVessel(selected);
+    selectVessel(selected, { openPanel: false });
   } else {
     selectedFeatureId = null;
-    detailPanel.classList.remove('visible');
+    floatingPanelManager?.hide('ship-details');
   }
 }
 
@@ -1092,7 +1092,25 @@ function setText(selector, value) {
   $(selector).textContent = value ?? '—';
 }
 
-function selectVessel(feature) {
+function vesselOperationalStatus(properties = {}) {
+  const speed = Number(properties.speed);
+  const type = String(properties.ship_type || '').toLowerCase();
+  if (!Number.isFinite(speed)) {
+    return { key: 'unknown', label: 'Status unavailable', badge: 'UNKNOWN', note: 'No valid speed value is available' };
+  }
+  if (speed <= 0.5) {
+    return { key: 'stationary', label: 'Stationary / Anchored', badge: 'STATIONARY', note: `Speed ${speed.toFixed(1)} kn · position is being refreshed` };
+  }
+  if (type === 'fishing' && speed <= 6) {
+    return { key: 'fishing', label: 'Fishing activity', badge: 'ACTIVE', note: `Moving at ${speed.toFixed(1)} kn in a fishing-speed range` };
+  }
+  if (speed < 3) {
+    return { key: 'manoeuvring', label: 'Slow movement / Manoeuvring', badge: 'MOVING', note: `Low-speed movement at ${speed.toFixed(1)} kn` };
+  }
+  return { key: 'underway', label: 'Under way', badge: 'MOVING', note: `Navigating at ${speed.toFixed(1)} kn` };
+}
+
+function selectVessel(feature, { openPanel = true } = {}) {
   const p = feature.properties;
   if (selectedFeatureId !== null && map?.getSource('vessels')) {
     map.setFeatureState({ source:'vessels', id:selectedFeatureId }, { selected:false });
@@ -1115,9 +1133,17 @@ function selectVessel(feature) {
   setText('#detailType', p.ship_type);
   setText('#detailMmsi', p.mmsi);
   setText('#detailId', p.id);
+  const operationalStatus = vesselOperationalStatus(p);
+  setText('#detailStatus', operationalStatus.label);
+  setText('#detailStatusBadge', operationalStatus.badge);
+  setText('#detailStatusNote', operationalStatus.note);
+  $('#detailStatusCard').dataset.status = operationalStatus.key;
   const color = TYPE_COLORS[p.ship_type] || TYPE_COLORS.Other;
   $('#detailShipIcon').style.color = color;
-  detailPanel.classList.add('visible');
+  if (openPanel) {
+    if (floatingPanelManager) floatingPanelManager.open('ship-details');
+    else detailPanel.classList.add('is-visible');
+  }
 }
 
 function clearSelectedVessel() {
@@ -1126,7 +1152,8 @@ function clearSelectedVessel() {
   }
   selectedFeatureId = null;
   selectedMmsi = null;
-  detailPanel.classList.remove('visible');
+  if (floatingPanelManager) floatingPanelManager.hide('ship-details');
+  else detailPanel.classList.remove('is-visible');
 }
 
 async function searchVessel(query) {
