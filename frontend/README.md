@@ -13,7 +13,7 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Dynamic dashboard statistics, risk signals, incident status, and recent events
 - Automatic API refresh every 5 seconds
 - Stable map selection: small pointer movement during a click no longer pans the map, and double-click zoom is disabled
-- Smooth movement from the previous real AIS coordinate to each newly received coordinate
+- Smooth position and course transitions between successive AIS coordinates
 - Centered, light vessel-detail windows with draggable headers and automatic navigation-status classification
 - Four switchable basemaps, including pure satellite imagery and a satellite hybrid with boundaries and place labels
 - Automatic default basemap by vessel-detail zoom: Standard Map below zoom 9 and Satellite Hybrid from zoom 9, aligned with the switch from overview vessels to type-coloured vessel symbols
