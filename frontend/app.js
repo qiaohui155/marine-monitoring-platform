@@ -45,6 +45,7 @@ let clockTimer = null;
 let vesselRefreshRunning = false;
 let operationalRefreshRunning = false;
 let vesselAnimationFrame = null;
+let vesselPulseFrame = null;
 let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
@@ -55,7 +56,7 @@ let basemapAutoMode = !hasRequestedBasemap;
 let activeBasemap = hasRequestedBasemap ? requestedBasemap : automaticBasemapForZoom(HOME.zoom);
 
 const LAYER_GROUPS = {
-  vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
+  vessels: ['vessel-motion-halo', 'vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
   tracks: ['track-lines'],
   pollution: ['pollution-fills', 'pollution-outlines'],
   risk: ['risk-fills', 'risk-outlines'],
@@ -319,6 +320,21 @@ function addOperationalLayers() {
 
 function addVesselLayers() {
   map.addSource('vessels', { type: 'geojson', data: vesselData, promoteId: 'mmsi' });
+  map.addLayer({
+    id: 'vessel-motion-halo',
+    type: 'circle',
+    source: 'vessels',
+    filter: ['>', ['coalesce', ['to-number', ['get', 'speed']], 0], 0.5],
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 9, 4, 13, 6],
+      'circle-color': ['match', ['get', 'ship_type'], 'Tanker', '#16a3c1', 'Cargo', '#e15d65', 'Fishing', '#7759c7', 'Passenger', '#2aa56e', '#ffd84d'],
+      'circle-opacity': .04,
+      'circle-blur': .35,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': .6,
+      'circle-stroke-opacity': .08
+    }
+  });
   map.addLayer({
     id: 'vessel-selection',
     type: 'circle',
@@ -890,6 +906,31 @@ function setRenderedVessels(collection) {
   map?.getSource('vessels')?.setData(renderedVesselData);
 }
 
+function triggerVesselMotionPulse() {
+  if (!map?.getLayer('vessel-motion-halo')) return;
+  if (vesselPulseFrame !== null) cancelAnimationFrame(vesselPulseFrame);
+  const startedAt = performance.now();
+  const duration = 3200;
+  const renderPulse = now => {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const wave = Math.sin(progress * Math.PI);
+    map.setPaintProperty('vessel-motion-halo', 'circle-radius', [
+      'interpolate', ['linear'], ['zoom'],
+      4, 2.5 + wave * 3.5,
+      9, 4 + wave * 5,
+      13, 6 + wave * 7
+    ]);
+    map.setPaintProperty('vessel-motion-halo', 'circle-opacity', .04 + wave * .14);
+    map.setPaintProperty('vessel-motion-halo', 'circle-stroke-opacity', .08 + wave * .24);
+    if (progress < 1) {
+      vesselPulseFrame = requestAnimationFrame(renderPulse);
+    } else {
+      vesselPulseFrame = null;
+    }
+  };
+  vesselPulseFrame = requestAnimationFrame(renderPulse);
+}
+
 function animateVesselUpdate(nextCollection, { initial = false } = {}) {
   if (vesselAnimationFrame !== null) {
     cancelAnimationFrame(vesselAnimationFrame);
@@ -899,6 +940,7 @@ function animateVesselUpdate(nextCollection, { initial = false } = {}) {
   const vesselSource = map?.getSource('vessels');
   if (initial || !vesselSource || renderedVesselData.features.length === 0) {
     setRenderedVessels(nextCollection);
+    triggerVesselMotionPulse();
     return;
   }
 
@@ -927,6 +969,7 @@ function animateVesselUpdate(nextCollection, { initial = false } = {}) {
     return;
   }
 
+  triggerVesselMotionPulse();
   const startedAt = performance.now();
   const renderFrame = now => {
     const progress = Math.min(1, (now - startedAt) / VESSEL_ANIMATION_MS);
@@ -1079,8 +1122,12 @@ function selectedTypes() {
 function applyTypeFilter() {
   const types = selectedTypes();
   const filter = types.length ? ['in', ['get', 'ship_type'], ['literal', types]] : ['==', 1, 0];
-  ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'].forEach(id => {
-    if (map?.getLayer(id)) map.setFilter(id, filter);
+  ['vessel-motion-halo', 'vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'].forEach(id => {
+    if (!map?.getLayer(id)) return;
+    const layerFilter = id === 'vessel-motion-halo'
+      ? ['all', filter, ['>', ['coalesce', ['to-number', ['get', 'speed']], 0], 0.5]]
+      : filter;
+    map.setFilter(id, layerFilter);
   });
   const visible = vesselData.features.filter(feature => types.includes(feature.properties.ship_type)).length;
   $('#totalShips').textContent = visible.toLocaleString();
