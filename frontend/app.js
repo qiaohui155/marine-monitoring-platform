@@ -1,6 +1,8 @@
 const API_BASE = 'http://127.0.0.1:8000';
 const AUTO_REFRESH_MS = 15000;
-const VESSEL_ANIMATION_MS = 6000;
+// PostgreSQL receives a new simulated AIS position every 15 seconds. Animate
+// most of that interval so routed vessels appear to move continuously.
+const VESSEL_ANIMATION_MS = 12000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const DETAILED_VESSEL_ZOOM = 9;

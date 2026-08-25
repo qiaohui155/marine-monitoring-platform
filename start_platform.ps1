@@ -26,6 +26,13 @@ function Get-ShipxyCollectorProcesses {
     })
 }
 
+function Get-SimulatedAisProcesses {
+    return @(Get-CimInstance Win32_Process | Where-Object {
+        $_.Name -eq 'python.exe' -and
+        [string]$_.CommandLine -match '-m\s+app\.simulated_ais(?:\s|$)'
+    })
+}
+
 function Test-ServiceUrl {
     param([Parameter(Mandatory = $true)][string]$Url)
     try {
@@ -62,7 +69,7 @@ if (-not (Test-Path $EnvironmentFile)) {
 }
 $Environment = Read-DotEnv -Path $EnvironmentFile
 
-Write-Host '[1/4] Checking backend API...'
+Write-Host '[1/5] Checking backend API...'
 if (-not (Test-ServiceUrl -Url $BackendUrl)) {
     $BackendProcess = Start-Process -FilePath $Python `
         -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000') `
@@ -89,7 +96,7 @@ catch {
     Write-Warning 'The API started, but the database health check timed out.'
 }
 
-Write-Host '[2/4] Checking live AIS collector...'
+Write-Host '[2/5] Checking live AIS collector...'
 $AutoStartCollector = [string]$Environment['SHIPXY_AUTO_START'] -match '^(?i:true|1|yes|on)$'
 $CollectorTargetDatabase = [string]$Environment['SHIPXY_TARGET_DB']
 $ActiveDatabase = [string]$Environment['DB_NAME']
@@ -131,7 +138,41 @@ else {
     }
 }
 
-Write-Host '[3/4] Checking frontend service...'
+Write-Host '[3/5] Checking simulated AIS service...'
+$SimulatedAutoStart = [string]$Environment['SIMULATED_AIS_AUTO_START'] -match '^(?i:true|1|yes|on)$'
+$SimulatorTargetDatabase = [string]$Environment['SIMULATED_AIS_TARGET_DB']
+if (-not $SimulatedAutoStart) {
+    Write-Host '[OK] Simulated AIS movement is disabled.' -ForegroundColor DarkGray
+}
+elseif ($AutoStartCollector) {
+    Write-Warning 'Simulated AIS movement was not started because live AIS collection is enabled.'
+}
+elseif (
+    -not [string]::IsNullOrWhiteSpace($SimulatorTargetDatabase) -and
+    -not [string]::Equals($SimulatorTargetDatabase, $ActiveDatabase, [System.StringComparison]::OrdinalIgnoreCase)
+) {
+    Write-Warning "Simulated AIS was not started because DB_NAME is '$ActiveDatabase', not '$SimulatorTargetDatabase'."
+}
+else {
+    $SimulatorProcesses = Get-SimulatedAisProcesses
+    if ($SimulatorProcesses.Count -eq 0) {
+        $SimulatorProcess = Start-Process -FilePath $Python `
+            -ArgumentList @('-m', 'app.simulated_ais') `
+            -WorkingDirectory $BackendDirectory `
+            -WindowStyle Hidden `
+            -PassThru
+        Start-Sleep -Milliseconds 800
+        if ($SimulatorProcess.HasExited) {
+            throw 'The simulated AIS service exited during startup. Check backend/logs/simulated_ais.log.'
+        }
+        Write-Host "[OK] Started simulated AIS process $($SimulatorProcess.Id)." -ForegroundColor Green
+    }
+    else {
+        Write-Host '[OK] Simulated AIS service is already running.' -ForegroundColor Green
+    }
+}
+
+Write-Host '[4/5] Checking frontend service...'
 if (-not (Test-ServiceUrl -Url $FrontendUrl)) {
     $FrontendProcess = Start-Process -FilePath $Python `
         -ArgumentList @('-m', 'http.server', '5173', '--bind', '127.0.0.1') `
@@ -145,7 +186,7 @@ else {
     Write-Host '[OK] Frontend service is already running.' -ForegroundColor Green
 }
 
-Write-Host '[4/4] Opening the monitoring platform...'
+Write-Host '[5/5] Opening the monitoring platform...'
 Start-Process $FrontendUrl
 Write-Host ''
 Write-Host 'Platform URL: http://127.0.0.1:5173/' -ForegroundColor Cyan

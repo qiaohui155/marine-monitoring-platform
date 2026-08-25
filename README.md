@@ -6,7 +6,7 @@ and optional ShipXY AIS collection.
 ## Project structure
 
 - `frontend/` - browser-based vessel and pollution map
-- `backend/` - read-only HTTP API plus optional AIS collector
+- `backend/` - read-only HTTP API plus optional live and simulated AIS services
 - `database/` - versioned schema, simulation seeds, and migrations
 - `start_platform.bat` - starts the API, optional live AIS collector, and frontend
 - `restart_platform.bat` - safely restarts all local platform services
@@ -20,6 +20,11 @@ and optional ShipXY AIS collection.
 To start real AIS collection with the platform, configure ShipXY locally and set
 `SHIPXY_AUTO_START=true` plus `SHIPXY_TARGET_DB=<live database>` in `backend/.env`.
 Only new coordinates received from the provider are animated on the map.
+
+For the local demonstration database, set `SIMULATED_AIS_AUTO_START=true` and
+`SIMULATED_AIS_TARGET_DB=Oman_Oil_Monitor`. The same platform shortcut then starts
+route-based vessel movement every 15 seconds and appends filtered history. Double-
+click `stop_simulated_ais.bat` before changing routes or switching branches.
 
 ## Security
 
