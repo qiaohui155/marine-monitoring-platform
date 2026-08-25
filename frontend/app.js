@@ -328,11 +328,11 @@ function addVesselLayers() {
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2.5, 9, 4, 13, 6],
       'circle-color': ['match', ['get', 'ship_type'], 'Tanker', '#16a3c1', 'Cargo', '#e15d65', 'Fishing', '#7759c7', 'Passenger', '#2aa56e', '#ffd84d'],
-      'circle-opacity': .04,
-      'circle-blur': .35,
+      'circle-opacity': .08,
+      'circle-blur': .15,
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': .6,
-      'circle-stroke-opacity': .08
+      'circle-stroke-width': 1.1,
+      'circle-stroke-opacity': .28
     }
   });
   map.addLayer({
@@ -908,25 +908,24 @@ function setRenderedVessels(collection) {
 
 function triggerVesselMotionPulse() {
   if (!map?.getLayer('vessel-motion-halo')) return;
-  if (vesselPulseFrame !== null) cancelAnimationFrame(vesselPulseFrame);
-  const startedAt = performance.now();
-  const duration = 3200;
+  if (vesselPulseFrame !== null) return;
+  let lastPaintAt = 0;
   const renderPulse = now => {
-    const progress = Math.min(1, (now - startedAt) / duration);
-    const wave = Math.sin(progress * Math.PI);
-    map.setPaintProperty('vessel-motion-halo', 'circle-radius', [
-      'interpolate', ['linear'], ['zoom'],
-      4, 2.5 + wave * 3.5,
-      9, 4 + wave * 5,
-      13, 6 + wave * 7
-    ]);
-    map.setPaintProperty('vessel-motion-halo', 'circle-opacity', .04 + wave * .14);
-    map.setPaintProperty('vessel-motion-halo', 'circle-stroke-opacity', .08 + wave * .24);
-    if (progress < 1) {
-      vesselPulseFrame = requestAnimationFrame(renderPulse);
-    } else {
-      vesselPulseFrame = null;
+    // A modest frame rate keeps the breathing ring visible without placing a
+    // heavy render load on maps containing several thousand vessels.
+    if (now - lastPaintAt >= 50) {
+      const wave = (Math.sin(now / 520) + 1) / 2;
+      map.setPaintProperty('vessel-motion-halo', 'circle-radius', [
+        'interpolate', ['linear'], ['zoom'],
+        4, 3 + wave * 5,
+        9, 5 + wave * 7,
+        13, 7 + wave * 9
+      ]);
+      map.setPaintProperty('vessel-motion-halo', 'circle-opacity', .08 + wave * .20);
+      map.setPaintProperty('vessel-motion-halo', 'circle-stroke-opacity', .28 + wave * .55);
+      lastPaintAt = now;
     }
+    vesselPulseFrame = requestAnimationFrame(renderPulse);
   };
   vesselPulseFrame = requestAnimationFrame(renderPulse);
 }
@@ -1524,6 +1523,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('beforeunload', () => {
   if (refreshTimer !== null) clearInterval(refreshTimer);
   if (clockTimer !== null) clearInterval(clockTimer);
+  if (vesselPulseFrame !== null) cancelAnimationFrame(vesselPulseFrame);
 });
 
 startClock();
