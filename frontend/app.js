@@ -3,7 +3,6 @@ const AUTO_REFRESH_MS = 5000;
 // PostgreSQL receives a new AIS position every five seconds. Interpolate most
 // of that interval so successive coordinates appear as continuous movement.
 const VESSEL_ANIMATION_MS = 4200;
-const MAX_VISUAL_COURSE_STEP = 4;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const DETAILED_VESSEL_ZOOM = 9;
@@ -891,19 +890,6 @@ function setRenderedVessels(collection) {
   map?.getSource('vessels')?.setData(renderedVesselData);
 }
 
-function normaliseCourse(value) {
-  return ((Number(value) % 360) + 360) % 360;
-}
-
-function limitedCourseTarget(previousCourse, nextCourse) {
-  const start = Number(previousCourse);
-  const target = Number(nextCourse);
-  if (!Number.isFinite(start) || !Number.isFinite(target)) return target;
-  const delta = ((normaliseCourse(target) - normaliseCourse(start) + 540) % 360) - 180;
-  const limitedDelta = Math.max(-MAX_VISUAL_COURSE_STEP, Math.min(MAX_VISUAL_COURSE_STEP, delta));
-  return normaliseCourse(start + limitedDelta);
-}
-
 function animateVesselUpdate(nextCollection, { initial = false } = {}) {
   if (vesselAnimationFrame !== null) {
     cancelAnimationFrame(vesselAnimationFrame);
@@ -932,13 +918,8 @@ function animateVesselUpdate(nextCollection, { initial = false } = {}) {
       !start.every(Number.isFinite) || !target.every(Number.isFinite) ||
       (start[0] === target[0] && start[1] === target[1])
     ) return;
-    const startCourse = Number(previous.properties?.course);
-    const targetCourse = limitedCourseTarget(startCourse, feature.properties?.course);
-    movements.push({ index, start: [...start], target: [...target], startCourse, targetCourse });
+    movements.push({ index, start: [...start], target: [...target] });
     feature.geometry.coordinates = [...start];
-    if (Number.isFinite(startCourse) && Number.isFinite(targetCourse)) {
-      feature.properties.course = normaliseCourse(startCourse);
-    }
   });
 
   if (movements.length === 0) {
@@ -953,15 +934,11 @@ function animateVesselUpdate(nextCollection, { initial = false } = {}) {
       ? 2 * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-    movements.forEach(({ index, start, target, startCourse, targetCourse }) => {
+    movements.forEach(({ index, start, target }) => {
       animatedCollection.features[index].geometry.coordinates = [
         start[0] + (target[0] - start[0]) * eased,
         start[1] + (target[1] - start[1]) * eased
       ];
-      if (Number.isFinite(startCourse) && Number.isFinite(targetCourse)) {
-        const delta = ((targetCourse - normaliseCourse(startCourse) + 540) % 360) - 180;
-        animatedCollection.features[index].properties.course = normaliseCourse(startCourse + delta * eased);
-      }
     });
     renderedVesselData = animatedCollection;
     vesselSource.setData(animatedCollection);
@@ -970,7 +947,7 @@ function animateVesselUpdate(nextCollection, { initial = false } = {}) {
       vesselAnimationFrame = requestAnimationFrame(renderFrame);
     } else {
       vesselAnimationFrame = null;
-      setRenderedVessels(animatedCollection);
+      setRenderedVessels(nextCollection);
     }
   };
   vesselAnimationFrame = requestAnimationFrame(renderFrame);
