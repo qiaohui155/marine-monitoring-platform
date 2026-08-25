@@ -41,10 +41,12 @@ The HTTP API is read-only. Map layers are returned as GeoJSON and are sourced fr
 PostGIS. The optional ShipXY collector can update real vessel positions and append
 historical track points when that table is available.
 
-The route-based simulator is implemented in `app/simulated_ais.py`. After database
-migrations 003, 004 and 005 have been applied, set `SIMULATED_AIS_AUTO_START=true`
+The simulator is implemented in `app/simulated_ais.py`. After database migrations
+003, 004, 005 and 006 have been applied, set `SIMULATED_AIS_AUTO_START=true`
 in the local `.env`. The main `start_platform.bat` shortcut then starts it
-automatically. Do not enable simulated and live ShipXY collection at the same time.
+automatically. Reviewed route matches follow shipping routes; remaining vessels move
+locally around their existing sea positions so that every simulated vessel receives
+a fresh AIS timestamp. Do not enable simulated and live ShipXY collection at the same time.
 
 ## Optional real ShipXY AIS collection
 

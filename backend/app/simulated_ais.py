@@ -212,6 +212,137 @@ ORDER BY mmsi
 """
 
 
+LOCAL_POSITIONS_SQL = """
+WITH selected AS (
+    SELECT
+        state.mmsi,
+        state.direction,
+        state.local_progress,
+        state.local_radius_m,
+        state.anchor_geom,
+        state.simulated_speed AS state_speed,
+        position.ship_type,
+        COALESCE(position.speed, 0) AS current_speed,
+        COALESCE(position.course, state.simulated_course, 0) AS current_course,
+        position.geom AS current_geom
+    FROM public.ship_motion_state AS state
+    JOIN public.ship_position AS position
+      ON position.mmsi = state.mmsi
+    WHERE state.movement_enabled = true
+      AND NOT (
+          state.route_id IS NOT NULL
+          AND state.motion_mode <> 'ANCHORED'
+          AND state.simulated_speed > 0
+          AND COALESCE(state.route_distance_m, 0) <= %s
+      )
+    ORDER BY state.mmsi
+),
+motion_values AS (
+    SELECT
+        selected.*,
+        CASE
+            WHEN current_speed <= 0.5 THEN 0.0
+            WHEN ship_type = 'Fishing' THEN LEAST(GREATEST(state_speed, 1.0), 3.5)
+            WHEN ship_type = 'Passenger' THEN LEAST(GREATEST(state_speed, 1.5), 5.0)
+            WHEN ship_type IN ('Cargo', 'Tanker') THEN LEAST(GREATEST(state_speed, 1.0), 4.0)
+            ELSE LEAST(GREATEST(state_speed, 1.0), 3.0)
+        END AS local_speed,
+        CASE
+            WHEN local_radius_m > 0 THEN local_radius_m
+            WHEN ship_type = 'Fishing' THEN 120.0
+            WHEN ship_type = 'Passenger' THEN 180.0
+            WHEN ship_type IN ('Cargo', 'Tanker') THEN 250.0
+            ELSE 150.0
+        END AS effective_radius_m
+    FROM selected
+),
+current_target AS (
+    SELECT
+        motion_values.*,
+        local_speed * 0.514444 * %s AS movement_m,
+        CASE
+            WHEN local_speed <= 0 THEN current_geom
+            ELSE ST_Project(
+                anchor_geom::geography,
+                effective_radius_m,
+                2.0 * pi() * local_progress
+            )::geometry
+        END AS current_target_geom
+    FROM motion_values
+),
+next_progress AS (
+    SELECT
+        current_target.*,
+        CASE
+            WHEN local_speed <= 0 THEN local_progress
+            WHEN ST_Distance(
+                    current_geom::geography,
+                    current_target_geom::geography
+                 ) > GREATEST(movement_m * 1.5, 15.0)
+                THEN local_progress
+            ELSE (
+                local_progress
+                + direction * movement_m / NULLIF(2.0 * pi() * effective_radius_m, 0)
+            )
+        END AS proposed_progress
+    FROM current_target
+),
+normalised AS (
+    SELECT
+        next_progress.*,
+        proposed_progress - floor(proposed_progress) AS next_local_progress
+    FROM next_progress
+),
+target_geometry AS (
+    SELECT
+        normalised.*,
+        CASE
+            WHEN local_speed <= 0 THEN current_geom
+            ELSE ST_Project(
+                anchor_geom::geography,
+                effective_radius_m,
+                2.0 * pi() * next_local_progress
+            )::geometry
+        END AS target_geom
+    FROM normalised
+),
+new_geometry AS (
+    SELECT
+        target_geometry.*,
+        CASE
+            WHEN local_speed <= 0 THEN current_geom
+            WHEN ST_Distance(current_geom::geography, target_geom::geography) <= movement_m
+                THEN target_geom
+            ELSE ST_Project(
+                current_geom::geography,
+                movement_m,
+                ST_Azimuth(current_geom::geography, target_geom::geography)
+            )::geometry
+        END AS new_geom
+    FROM target_geometry
+)
+SELECT
+    mmsi,
+    next_local_progress,
+    effective_radius_m,
+    local_speed AS simulated_speed,
+    ST_X(new_geom) AS longitude,
+    ST_Y(new_geom) AS latitude,
+    CASE
+        WHEN local_speed <= 0
+             OR ST_DWithin(current_geom::geography, new_geom::geography, 0.05)
+            THEN current_course
+        ELSE degrees(ST_Azimuth(current_geom::geography, new_geom::geography)) + 360.0
+             - floor(
+                 (degrees(ST_Azimuth(current_geom::geography, new_geom::geography)) + 360.0)
+                 / 360.0
+             ) * 360.0
+    END AS course
+FROM new_geometry
+ORDER BY mmsi
+"""
+
+
 UPDATE_POSITION_SQL = """
 UPDATE public.ship_position
 SET longitude = %s,
@@ -231,6 +362,17 @@ SET route_progress = %s,
     lateral_offset_m = %s,
     simulated_course = %s,
     track_enabled = true,
+    last_position_time = %s,
+    updated_at = %s
+WHERE mmsi = %s
+"""
+
+
+UPDATE_LOCAL_STATE_SQL = """
+UPDATE public.ship_motion_state
+SET local_progress = %s,
+    local_radius_m = %s,
+    simulated_course = %s,
     last_position_time = %s,
     updated_at = %s
 WHERE mmsi = %s
@@ -331,7 +473,7 @@ def _settings() -> dict[str, Any]:
         "update_seconds": _int_setting("SIMULATED_AIS_UPDATE_SECONDS", 15, 5, 3600),
         "track_seconds": _int_setting("SIMULATED_TRACK_SECONDS", 120, 30, 86400),
         "track_min_metres": _float_setting("SIMULATED_TRACK_MIN_METERS", 200.0, 0.0, 100000.0),
-        "max_vessels": _int_setting("SIMULATED_AIS_MAX_VESSELS", 100, 1, 5000),
+        "max_vessels": _int_setting("SIMULATED_AIS_MAX_VESSELS", 5000, 1, 5000),
         "max_join_metres": _float_setting("SIMULATED_AIS_MAX_JOIN_METERS", 5000.0, 100.0, 50000.0),
     }
 
@@ -383,8 +525,22 @@ def _verify_schema(cursor: Any) -> None:
             "Missing database objects: " + ", ".join(missing) + ". Run migrations 003 and 004 first."
         )
 
+    cursor.execute(
+        """
+        SELECT count(*) = 2 AS local_motion_ready
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'ship_motion_state'
+          AND column_name IN ('local_progress', 'local_radius_m')
+        """
+    )
+    if not cursor.fetchone()["local_motion_ready"]:
+        raise RuntimeError(
+            "Local vessel motion fields are missing. Run migration 006_add_local_vessel_motion.sql first."
+        )
 
-def _calculate_positions(cursor: Any, settings: dict[str, Any]) -> list[dict[str, Any]]:
+
+def _calculate_route_positions(cursor: Any, settings: dict[str, Any]) -> list[dict[str, Any]]:
     cursor.execute(
         NEXT_POSITIONS_SQL,
         (
@@ -396,7 +552,24 @@ def _calculate_positions(cursor: Any, settings: dict[str, Any]) -> list[dict[str
     return [dict(row) for row in cursor.fetchall()]
 
 
-def _save_cycle(cursor: Any, positions: list[dict[str, Any]], settings: dict[str, Any]) -> int:
+def _calculate_local_positions(cursor: Any, settings: dict[str, Any]) -> list[dict[str, Any]]:
+    cursor.execute(
+        LOCAL_POSITIONS_SQL,
+        (
+            settings["max_join_metres"],
+            settings["update_seconds"],
+        ),
+    )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def _save_cycle(
+    cursor: Any,
+    route_positions: list[dict[str, Any]],
+    local_positions: list[dict[str, Any]],
+    settings: dict[str, Any],
+) -> int:
+    positions = route_positions + local_positions
     if not positions:
         return 0
 
@@ -419,47 +592,68 @@ def _save_cycle(cursor: Any, positions: list[dict[str, Any]], settings: dict[str
             for row in positions
         ],
     )
-    cursor.executemany(
-        UPDATE_STATE_SQL,
-        [
-            (
-                row["next_progress"],
-                row["next_direction"],
-                row["effective_offset_m"],
-                row["course"],
-                cycle_time,
-                cycle_time,
-                row["mmsi"],
-            )
-            for row in positions
-        ],
-    )
+    if route_positions:
+        cursor.executemany(
+            UPDATE_STATE_SQL,
+            [
+                (
+                    row["next_progress"],
+                    row["next_direction"],
+                    row["effective_offset_m"],
+                    row["course"],
+                    cycle_time,
+                    cycle_time,
+                    row["mmsi"],
+                )
+                for row in route_positions
+            ],
+        )
 
-    cursor.execute(
-        APPEND_TRACK_SQL,
-        (
-            [row["mmsi"] for row in positions],
-            cycle_time,
-            settings["track_seconds"],
-            settings["track_min_metres"],
-            cycle_time,
-            cycle_time,
-        ),
-    )
-    return len(cursor.fetchall())
+    if local_positions:
+        cursor.executemany(
+            UPDATE_LOCAL_STATE_SQL,
+            [
+                (
+                    row["next_local_progress"],
+                    row["effective_radius_m"],
+                    row["course"],
+                    cycle_time,
+                    cycle_time,
+                    row["mmsi"],
+                )
+                for row in local_positions
+            ],
+        )
+
+    if route_positions:
+        cursor.execute(
+            APPEND_TRACK_SQL,
+            (
+                [row["mmsi"] for row in route_positions],
+                cycle_time,
+                settings["track_seconds"],
+                settings["track_min_metres"],
+                cycle_time,
+                cycle_time,
+            ),
+        )
+        return len(cursor.fetchall())
+    return 0
 
 
 def run_cycle(connection: Any, settings: dict[str, Any], dry_run: bool = False) -> tuple[int, int]:
     try:
         with connection.cursor() as cursor:
             _verify_schema(cursor)
-            positions = _calculate_positions(cursor, settings)
+            route_positions = _calculate_route_positions(cursor, settings)
+            local_positions = _calculate_local_positions(cursor, settings)
+            position_count = len(route_positions) + len(local_positions)
             if dry_run:
                 connection.rollback()
-                return len(positions), 0
-            track_count = _save_cycle(cursor, positions, settings)
+                return position_count, 0
+            track_count = _save_cycle(cursor, route_positions, local_positions, settings)
         connection.commit()
-        return len(positions), track_count
+        return position_count, track_count
     except Exception:
         connection.rollback()
         raise
