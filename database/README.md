@@ -15,6 +15,13 @@ itself and real AIS observations are not stored in GitHub.
 - `backup_database.ps1` - creates and validates an external custom-format backup
 - `apply_migration.ps1` - backs up, then applies one migration with stop-on-error
 
+The simulated AIS runtime uses migrations `003`, `004`, and `005` in order:
+
+- `003_add_simulated_ais_motion.sql` creates routes and per-vessel motion state.
+- `004_replace_shipping_routes_ocean_only.sql` installs the reviewed offshore routes.
+- `005_prepare_simulated_ais_runtime.sql` preserves the pre-movement position snapshot
+  and adds indexes used by real-time track updates.
+
 ## Safe workflow for every database change
 
 1. Create a new file in `migrations/`, for example

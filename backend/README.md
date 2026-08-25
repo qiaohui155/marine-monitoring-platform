@@ -1,6 +1,8 @@
-# Oman Marine Monitoring API - read-only PostGIS service
+# Oman Marine Monitoring API and AIS services
 
-This backend uses the existing `Oman_Oil_Monitor` PostgreSQL/PostGIS database. It does not modify database data.
+This backend uses the existing `Oman_Oil_Monitor` PostgreSQL/PostGIS database.
+The HTTP API is read-only. Optional AIS services can update vessel positions and
+append historical track points.
 
 ## Confirmed source
 
@@ -38,6 +40,20 @@ This backend uses the existing `Oman_Oil_Monitor` PostgreSQL/PostGIS database. I
 The HTTP API is read-only. Map layers are returned as GeoJSON and are sourced from
 PostGIS. A separate optional ShipXY collector can update real vessel positions and
 append their historical track points.
+
+## Simulated AIS movement
+
+After migrations `003_add_simulated_ais_motion.sql` and
+`004_replace_shipping_routes_ocean_only.sql` are applied, run:
+
+`python -m app.simulated_ais --once --dry-run`
+
+This validates one cycle without changing PostgreSQL. Set the local `.env` values
+`SIMULATED_AIS_AUTO_START=true` and `SIMULATED_AIS_TARGET_DB=Oman_Oil_Monitor` to
+start the service with `start_platform.bat`. The default staged rollout moves the
+100 routed vessels closest to a route, updates them every 15 seconds, and appends
+history at a filtered interval. Increase `SIMULATED_AIS_MAX_VESSELS` only after the
+first group has been checked on the map.
 
 ## Optional real ShipXY AIS collection
 

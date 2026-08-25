@@ -1,5 +1,7 @@
 const API_BASE = 'http://127.0.0.1:8000';
 const AUTO_REFRESH_MS = 15000;
+const VESSEL_ANIMATION_MS = 12000;
+const VESSEL_ANIMATION_FRAME_MS = 100;
 const HOME = { center: [58.55, 23.95], zoom: 5.25 };
 const TYPE_COLORS = {
   Cargo: '#e15d65',
@@ -11,6 +13,7 @@ const TYPE_COLORS = {
 
 let map;
 let vesselData = { type: 'FeatureCollection', features: [] };
+let displayedVesselData = { type: 'FeatureCollection', features: [] };
 let trackData = { type: 'FeatureCollection', features: [] };
 let pollutionData = { type: 'FeatureCollection', features: [] };
 let riskData = { type: 'FeatureCollection', features: [] };
@@ -22,6 +25,8 @@ let selectedMmsi = null;
 let refreshTimer = null;
 let vesselRefreshRunning = false;
 let operationalRefreshRunning = false;
+let vesselAnimationFrame = null;
+let vesselAnimationGeneration = 0;
 
 const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels', 'vessel-labels'],
@@ -321,6 +326,122 @@ function updateRefreshStatus(message) {
   if (status) status.textContent = message;
 }
 
+function vesselKey(feature) {
+  return String(feature.properties?.mmsi ?? feature.id ?? feature.properties?.id ?? '');
+}
+
+function cloneVesselCollection(data) {
+  return {
+    type: 'FeatureCollection',
+    features: data.features.map(feature => ({
+      ...feature,
+      geometry: {
+        ...feature.geometry,
+        coordinates: [...feature.geometry.coordinates]
+      },
+      properties: { ...feature.properties }
+    }))
+  };
+}
+
+function interpolateCourse(fromValue, toValue, progress) {
+  const from = Number(fromValue);
+  const to = Number(toValue);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return toValue;
+  const shortestTurn = ((to - from + 540) % 360) - 180;
+  return (from + shortestTurn * progress + 360) % 360;
+}
+
+function displayVessels(nextData, { initial = false } = {}) {
+  const source = map.getSource('vessels');
+  if (!source) return;
+
+  vesselAnimationGeneration += 1;
+  const generation = vesselAnimationGeneration;
+  if (vesselAnimationFrame !== null) {
+    cancelAnimationFrame(vesselAnimationFrame);
+    vesselAnimationFrame = null;
+  }
+
+  if (initial || displayedVesselData.features.length === 0) {
+    displayedVesselData = cloneVesselCollection(nextData);
+    source.setData(displayedVesselData);
+    return;
+  }
+
+  const previousByKey = new Map(
+    displayedVesselData.features.map(feature => [vesselKey(feature), feature])
+  );
+  const animated = cloneVesselCollection(nextData);
+  const transitions = [];
+
+  animated.features.forEach(feature => {
+    const previous = previousByKey.get(vesselKey(feature));
+    if (!previous) return;
+    const from = previous.geometry.coordinates.map(Number);
+    const to = feature.geometry.coordinates.map(Number);
+    if (![...from, ...to].every(Number.isFinite)) return;
+
+    const longitudeDelta = to[0] - from[0];
+    const latitudeDelta = to[1] - from[1];
+    const plausibleStep = Math.hypot(longitudeDelta, latitudeDelta) <= 0.08;
+    if (!plausibleStep) return;
+
+    const targetCourse = feature.properties.course;
+    feature.geometry.coordinates = [...from];
+    feature.properties.course = previous.properties?.course ?? feature.properties.course;
+    transitions.push({
+      feature,
+      from,
+      to,
+      fromCourse: previous.properties?.course,
+      toCourse: targetCourse
+    });
+  });
+
+  if (transitions.length === 0) {
+    displayedVesselData = cloneVesselCollection(nextData);
+    source.setData(displayedVesselData);
+    return;
+  }
+
+  displayedVesselData = animated;
+  source.setData(displayedVesselData);
+  const startedAt = performance.now();
+  let lastPaintAt = 0;
+
+  const animate = now => {
+    if (generation !== vesselAnimationGeneration) return;
+    const progress = Math.min(1, (now - startedAt) / VESSEL_ANIMATION_MS);
+
+    if (progress >= 1 || now - lastPaintAt >= VESSEL_ANIMATION_FRAME_MS) {
+      transitions.forEach(transition => {
+        transition.feature.geometry.coordinates[0] =
+          transition.from[0] + (transition.to[0] - transition.from[0]) * progress;
+        transition.feature.geometry.coordinates[1] =
+          transition.from[1] + (transition.to[1] - transition.from[1]) * progress;
+        transition.feature.properties.course = interpolateCourse(
+          transition.fromCourse,
+          transition.toCourse,
+          progress
+        );
+      });
+      source.setData(displayedVesselData);
+      lastPaintAt = now;
+    }
+
+    if (progress < 1) {
+      vesselAnimationFrame = requestAnimationFrame(animate);
+    } else {
+      displayedVesselData = cloneVesselCollection(nextData);
+      source.setData(displayedVesselData);
+      vesselAnimationFrame = null;
+    }
+  };
+
+  vesselAnimationFrame = requestAnimationFrame(animate);
+}
+
 function refreshSelectedVessel() {
   if (selectedFeatureId === null) return;
   const selected = vesselData.features.find(feature => {
@@ -342,7 +463,7 @@ async function loadVessels({ initial = false } = {}) {
     const response = await fetch(`${API_BASE}/api/ships?limit=5000`, { cache: 'no-store' });
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     vesselData = await response.json();
-    map.getSource('vessels').setData(vesselData);
+    displayVessels(vesselData, { initial });
     updateSummary(vesselData);
     applyTypeFilter();
     refreshSelectedVessel();
@@ -606,6 +727,7 @@ document.addEventListener('visibilitychange', () => {
 
 window.addEventListener('beforeunload', () => {
   if (refreshTimer !== null) clearInterval(refreshTimer);
+  if (vesselAnimationFrame !== null) cancelAnimationFrame(vesselAnimationFrame);
 });
 
 initMap();
