@@ -20,6 +20,8 @@ When `SIMULATED_AIS_AUTO_START=true`, the same shortcut also starts the local
 simulated AIS movement service. It updates routed vessels every 15 seconds and
 builds filtered history in `ship_track`. Runtime details are written to
 `backend/logs/simulated_ais.log`.
+Double-click `stop_simulated_ais.bat` before changing routes, switching to a branch
+without the simulator, or pausing simulated movement.
 
 Real AIS collection is separate. Configure it with
 `backend/configure_shipxy.bat`, then run `backend/start_shipxy_ingest.bat`.
