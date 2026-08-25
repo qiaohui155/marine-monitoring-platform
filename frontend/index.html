@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260825-light-vessel-details" />
+  <link rel="stylesheet" href="styles.css?v=20260825-single-vessel-track" />
 </head>
 <body>
   <main class="platform-shell">
@@ -260,9 +260,10 @@
           </div>
           <div class="track-catalog" data-watch-content="tracks" hidden>
             <div class="track-catalog-toolbar">
-              <div><strong id="trackCatalogCount">0 vessels</strong><span>Select any vessel to display only its historical track.</span></div>
-              <button type="button" id="showAllTrackCatalog">SHOW ALL TRACKS</button>
+              <div><strong id="trackCatalogCount">0 vessels</strong><span>Select a vessel to display only its historical track.</span></div>
+              <button type="button" id="clearTrackSelection" disabled>CLEAR TRACK</button>
             </div>
+            <div class="track-selection-status" id="trackSelectionStatus" data-active="false"><span>Selected track</span><strong>No vessel selected</strong><small>Use the list below or open a vessel and choose “Show Historical Track”.</small></div>
             <label class="track-catalog-search"><span>Search vessel</span><input id="trackCatalogSearch" type="search" placeholder="Ship name or MMSI" autocomplete="off"></label>
             <div class="track-catalog-table" role="table" aria-label="Vessels with historical tracks">
               <div class="track-catalog-head" role="row"><span>VESSEL</span><span>TYPE</span><span>TRACK PERIOD</span><span>POINTS</span><span>ACTION</span></div>
@@ -400,6 +401,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260825-five-second-position-refresh"></script>
+  <script src="app.js?v=20260825-single-vessel-track"></script>
 </body>
 </html>

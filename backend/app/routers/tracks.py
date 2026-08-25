@@ -13,9 +13,51 @@ from ..database import get_connection
 router = APIRouter(tags=["Vessel Tracks"])
 
 
+@router.get("/api/tracks/catalog")
+def list_track_catalog(
+    search: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 5000,
+) -> dict:
+    """Return lightweight vessel metadata for the historical-track selector."""
+    conditions: list[str] = []
+    parameters: list[object] = []
+    if search:
+        conditions.append("(ship_name ILIKE %s OR mmsi ILIKE %s)")
+        term = f"%{search.strip()}%"
+        parameters.extend([term, term])
+
+    where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = f"""
+        SELECT
+            mmsi,
+            ship_name,
+            ship_type,
+            start_time,
+            end_time,
+            point_count,
+            ROUND((ST_Length(geom::geography) / 1852.0)::numeric, 2) AS distance_nm
+        FROM public.ship_track_lines
+        {where_sql}
+        ORDER BY ship_name NULLS LAST, mmsi
+        LIMIT %s
+    """
+    parameters.append(limit)
+
+    try:
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql, parameters)
+                rows = [dict(row) for row in cursor.fetchall()]
+    except (PsycopgError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {"count": len(rows), "items": rows}
+
+
 @router.get("/api/tracks")
 def list_track_lines(
     search: str | None = None,
+    mmsi: str | None = None,
     ship_type: str | None = None,
     min_lon: float | None = None,
     min_lat: float | None = None,
@@ -27,6 +69,9 @@ def list_track_lines(
     conditions: list[str] = []
     parameters: list[object] = []
 
+    if mmsi:
+        conditions.append("mmsi = %s")
+        parameters.append(mmsi.strip())
     if search:
         conditions.append("(ship_name ILIKE %s OR mmsi ILIKE %s)")
         term = f"%{search.strip()}%"

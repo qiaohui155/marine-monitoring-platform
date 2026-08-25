@@ -8,12 +8,12 @@ This frontend is the browser-based operational screen for the local Oman marine 
 - Overview vessel symbols below zoom 9 and type colors at detailed zoom levels
 - Vessel name and MMSI search
 - Vessel type filters and layer controls
-- Historical vessel tracks
+- Searchable historical-track vessel catalog with one-vessel-at-a-time map display and a clear-selection action
 - Pollution events, sea-risk areas, suspected vessels, and warning areas
 - Dynamic dashboard statistics, risk signals, incident status, and recent events
 - Automatic API refresh every 5 seconds
 - Stable map selection: small pointer movement during a click no longer pans the map, and double-click zoom is disabled
-- Smooth position and course transitions between successive AIS coordinates
+- Smooth position transitions between successive AIS coordinates while retaining the latest reported course
 - Centered, light vessel-detail windows with draggable headers and automatic navigation-status classification
 - Four switchable basemaps, including pure satellite imagery and a satellite hybrid with boundaries and place labels
 - Automatic default basemap by vessel-detail zoom: Standard Map below zoom 9 and Satellite Hybrid from zoom 9, aligned with the switch from overview vessels to type-coloured vessel symbols
