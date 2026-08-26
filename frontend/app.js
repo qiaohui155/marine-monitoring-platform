@@ -43,6 +43,10 @@ let selectedFeatureId = null;
 let selectedMmsi = null;
 let selectedTrackMmsi = null;
 let selectedTrackRequest = 0;
+let sourceCandidateData = [];
+let sourceCandidateEventId = null;
+let sourceCandidateRadiusNm = null;
+let sourceCandidateRequest = 0;
 let refreshTimer = null;
 let clockTimer = null;
 let vesselRefreshRunning = false;
@@ -539,25 +543,63 @@ function renderSatelliteReadiness() {
   setText('#satelliteReadinessLabel', events.length ? `${events.length} mapped events` : 'Data readiness');
 }
 
-function renderSourceAnalysis() {
+function renderSourceCandidateRows() {
+  const container = $('#sourceCandidateList');
+  if (!container) return;
+  setText('#sourceCandidateCount', `${sourceCandidateData.length} candidates`);
+  container.innerHTML = sourceCandidateData.length ? sourceCandidateData.map(item => {
+    const crossed = item.match_type === 'INTERSECTS' || item.intersects_event === true;
+    const start = formatDate(item.start_time);
+    const end = formatDate(item.end_time);
+    const distance = crossed ? 'Crossed area' : `${numberValue(item.distance_nm).toFixed(1)} NM`;
+    return `<div class="candidate-row"><strong>${escapeHtml(item.ship_name || item.mmsi || 'Unknown vessel')}<small>MMSI ${escapeHtml(item.mmsi || '—')} · ${escapeHtml(start)} to ${escapeHtml(end)}</small></strong><span>${escapeHtml(item.ship_type || 'Other')}</span><span>${escapeHtml(distance)}</span><em class="${crossed ? 'priority' : ''}">${crossed ? 'Track intersects' : 'Track nearby'}</em><button type="button" data-source-track-mmsi="${escapeHtml(item.mmsi || '')}">SHOW TRACK</button></div>`;
+  }).join('') : '<div class="empty-row">No historical vessel track crosses or approaches this event area within the selected distance.</div>';
+}
+
+async function loadSourceCandidates(eventId, nearbyNm) {
+  const requestId = ++sourceCandidateRequest;
+  const container = $('#sourceCandidateList');
+  if (container) container.innerHTML = '<div class="empty-row">Screening historical tracks against the pollution area…</div>';
+  setText('#sourceCandidateCount', 'Screening…');
+  try {
+    const result = await fetchGeoJson(`/api/pollution-events/${encodeURIComponent(eventId)}/candidate-vessels?nearby_nm=${encodeURIComponent(nearbyNm)}&limit=500`);
+    if (requestId !== sourceCandidateRequest) return;
+    sourceCandidateEventId = String(eventId);
+    sourceCandidateRadiusNm = Number(nearbyNm);
+    sourceCandidateData = Array.isArray(result.items) ? result.items : [];
+    renderSourceCandidateRows();
+  } catch (error) {
+    if (requestId !== sourceCandidateRequest) return;
+    sourceCandidateData = [];
+    setText('#sourceCandidateCount', 'Unavailable');
+    if (container) container.innerHTML = `<div class="empty-row">Historical-track screening failed: ${escapeHtml(error.message)}</div>`;
+    console.error(error);
+  }
+}
+
+function renderSourceAnalysis(options = {}) {
+  const force = options?.force === true;
   const feature = syncEventSelect('#sourceEventSelect');
   const container = $('#sourceCandidateList');
   if (!feature || !container) {
+    sourceCandidateData = [];
+    sourceCandidateEventId = null;
     setText('#sourceCandidateCount', '0 candidates');
     if (container) container.innerHTML = '<div class="empty-row">No event record is available for screening</div>';
     return;
   }
   const properties = feature.properties || {};
   const center = featureCenter(feature);
-  const candidates = nearbyVessels(feature);
+  const eventId = String(properties.event_id ?? feature.id);
+  const nearbyNm = Number($('#sourceNearbyNm')?.value || 10);
   setText('#sourceEventTime', formatDate(properties.event_time));
   setText('#sourceEventArea', properties.area_km2 == null ? '—' : `${numberValue(properties.area_km2).toFixed(2)} km²`);
   setText('#sourceEventCoordinates', center ? `${center[1].toFixed(4)}° N, ${center[0].toFixed(4)}° E` : '—');
-  setText('#sourceCandidateCount', `${candidates.length} candidates`);
-  container.innerHTML = candidates.length ? candidates.map(({ vessel, distance, suspected }) => {
-    const item = vessel.properties || {};
-    return `<div class="candidate-row"><strong>${escapeHtml(item.ship_name || item.mmsi || 'Unknown vessel')}<small>${escapeHtml(item.mmsi || 'No MMSI')}</small></strong><span>${escapeHtml(item.ship_type || 'Other')}</span><span>${distance.toFixed(1)} NM</span><em class="${suspected ? 'priority' : ''}">${suspected ? 'Priority list' : 'Proximity'}</em></div>`;
-  }).join('') : '<div class="empty-row">No vessel positions are available for screening</div>';
+  if (!force && sourceCandidateEventId === eventId && sourceCandidateRadiusNm === nearbyNm) {
+    renderSourceCandidateRows();
+    return;
+  }
+  loadSourceCandidates(eventId, nearbyNm);
 }
 
 function renderAlertCenter() {
@@ -1448,7 +1490,18 @@ function bindControls() {
     floatingPanelManager?.hide('satellite-products');
     showMessage('Pollution event footprints enabled');
   });
-  $('#sourceEventSelect')?.addEventListener('change', renderSourceAnalysis);
+  $('#sourceEventSelect')?.addEventListener('change', () => renderSourceAnalysis({ force: true }));
+  $('#sourceNearbyNm')?.addEventListener('change', () => renderSourceAnalysis({ force: true }));
+  $('#sourceCandidateList')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-source-track-mmsi]');
+    if (!button) return;
+    const requestedMmsi = String(button.dataset.sourceTrackMmsi || '');
+    displaySingleTrack(requestedMmsi)
+      .then(() => {
+        if (selectedTrackMmsi === requestedMmsi) floatingPanelManager?.hide('source-analysis');
+      })
+      .catch(error => showMessage(error.message));
+  });
   $('#sourceLocateEvent')?.addEventListener('click', () => {
     const feature = pollutionFeatureById($('#sourceEventSelect')?.value);
     if (feature) locateFeature(feature, `${feature.properties?.event_id || 'Event'} screening area located`);

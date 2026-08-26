@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260825-single-vessel-track" />
+  <link rel="stylesheet" href="styles.css?v=20260826-track-screening" />
 </head>
 <body>
   <main class="platform-shell">
@@ -301,18 +301,21 @@
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="business-section-intro"><div><strong>Nearby Vessel Screening</strong><span>Compares an incident center with current vessel positions and the suspected-vessel list.</span></div><em id="sourceCandidateCount">0 candidates</em></div>
-          <label class="business-select"><span>Pollution event</span><select id="sourceEventSelect"><option value="">Waiting for event records</option></select></label>
+          <div class="business-section-intro"><div><strong>Historical Track Screening</strong><span>Finds vessels whose historical track crossed the mapped pollution area or passed within the selected distance.</span></div><em id="sourceCandidateCount">0 candidates</em></div>
+          <div class="source-screening-controls">
+            <label class="business-select"><span>Pollution event</span><select id="sourceEventSelect"><option value="">Waiting for event records</option></select></label>
+            <label class="business-select"><span>Nearby distance</span><select id="sourceNearbyNm"><option value="5">5 NM</option><option value="10" selected>10 NM</option><option value="20">20 NM</option><option value="50">50 NM</option></select></label>
+          </div>
           <div class="event-context-grid">
             <article><span>Event time</span><strong id="sourceEventTime">—</strong></article>
             <article><span>Reported area</span><strong id="sourceEventArea">—</strong></article>
             <article><span>Center coordinates</span><strong id="sourceEventCoordinates">—</strong></article>
           </div>
           <div class="candidate-table">
-            <div class="candidate-table-head"><span>Vessel</span><span>Type</span><span>Distance</span><span>Review</span></div>
+            <div class="candidate-table-head"><span>Vessel / track period</span><span>Type</span><span>Spatial match</span><span>Basis</span><span>Action</span></div>
             <div id="sourceCandidateList"><div class="empty-row">Waiting for vessel and event data…</div></div>
           </div>
-          <p class="analysis-note">This screening ranks nearby current positions. A confirmed source assessment also requires time-matched trajectories, satellite observations and analyst review.</p>
+          <p class="analysis-note">Candidates are derived from stored AIS track lines. “Track intersects” means the route entered the mapped footprint; “Track nearby” means its nearest distance is within the selected nautical-mile threshold.</p>
           <div class="dialog-actions"><button class="business-primary-action" id="sourceLocateEvent" type="button">LOCATE EVENT</button></div>
         </div>
       </section>
@@ -401,6 +404,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260825-single-vessel-track"></script>
+  <script src="app.js?v=20260826-track-screening"></script>
 </body>
 </html>

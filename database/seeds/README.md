@@ -12,6 +12,7 @@ The numbered SQL files reproduce the development dataset in this order:
 8. Create the sea-risk layer baseline.
 9. Replace it with the final irregular risk-polygon generation model.
 10. Restore the exact current risk, pollution, suspicious-vessel, and warning layers.
+11. Create five irregular pollution events anchored to existing historical vessel tracks for source-screening tests.
 
 Several scripts intentionally use `DELETE` and random simulation functions. Run them
 only through the guarded `reset_simulation.ps1` launcher. The real ShipXY AIS collector
