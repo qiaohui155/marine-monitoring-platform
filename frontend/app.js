@@ -5,7 +5,8 @@ const AUTO_REFRESH_MS = 5000;
 const VESSEL_ANIMATION_MS = 4200;
 const TRACK_CATALOG_REFRESH_MS = 30000;
 const AIS_FRESHNESS_MS = 5 * 60 * 1000;
-const HOME = { center: [58.55, 23.95], zoom: 5.25 };
+// Musandam Governorate and the adjacent Strait of Hormuz monitoring waters.
+const HOME = { center: [56.45, 25.92], zoom: 7.15 };
 const DETAILED_VESSEL_ZOOM = 9;
 const MAP_CLICK_TOLERANCE_PX = 12;
 const BASEMAP_LAYERS = {
@@ -298,6 +299,7 @@ function addOperationalLayers() {
     id: 'suspicious-ships',
     type: 'circle',
     source: 'suspicious',
+    filter: ['==', ['get', 'mmsi'], '__no_selected_suspect__'],
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 5, 9, 9],
       'circle-color': ['match', ['get', 'risk_level'], '高', '#d73027', '中', '#f39c32', '#f1c84b'],
@@ -317,8 +319,13 @@ function addOperationalLayers() {
     ['Risk level', p.risk_level], ['Coefficient', p.coefficient], ['Basis', p.basis]
   ]));
   bindLayerPopup('suspicious-ships', p => popupHtml('Suspected vessel', p.ship_name || p.mmsi, [
-    ['MMSI', p.mmsi], ['Risk level', p.risk_level], ['Reason', p.reason]
+    ['MMSI', p.mmsi], ['Risk level', p.risk_level], ['Reason', p.reason], ['Map action', 'Displaying this vessel’s historical track']
   ]));
+  map.on('click', 'suspicious-ships', event => {
+    const mmsi = event.features?.[0]?.properties?.mmsi;
+    if (!mmsi) return;
+    displaySingleTrack(mmsi).catch(error => showMessage(error.message));
+  });
   bindLayerPopup('warning-fills', p => popupHtml('Warning area', p.warning_name, [
     ['Level', p.warning_level], ['Reason', p.reason], ['Issued', formatDate(p.warning_time)]
   ]));
@@ -1074,6 +1081,7 @@ async function loadOperationalLayers({ initial = false } = {}) {
       map.getSource('suspicious')?.setData(suspiciousData);
       map.getSource('warnings')?.setData(warningData);
     }
+    syncSelectedSuspectMarker();
     updateTrackSelectionStatus();
   } catch (error) {
     if (!initial) showMessage('One or more operational layers could not be refreshed');
@@ -1241,12 +1249,35 @@ function setLayerToggle(toggleId, group, visible) {
   setLayerGroupVisibility(group, visible);
 }
 
+function syncSelectedSuspectMarker() {
+  if (!map?.getLayer('suspicious-ships')) return;
+  const selected = String(selectedTrackMmsi || '');
+  const isSuspected = Boolean(selected && (suspiciousData.features || []).some(feature => {
+    return String(feature.properties?.mmsi || '') === selected;
+  }));
+  const trackVisible = Boolean(
+    map.getLayer('track-lines') &&
+    map.getLayoutProperty('track-lines', 'visibility') !== 'none'
+  );
+  const showSelectedSuspect = isSuspected && trackVisible;
+  map.setFilter(
+    'suspicious-ships',
+    showSelectedSuspect
+      ? ['==', ['get', 'mmsi'], selected]
+      : ['==', ['get', 'mmsi'], '__no_selected_suspect__']
+  );
+  map.setLayoutProperty('suspicious-ships', 'visibility', showSelectedSuspect ? 'visible' : 'none');
+  const toggle = $('#suspiciousLayerToggle');
+  if (toggle) toggle.checked = showSelectedSuspect;
+}
+
 function clearTrackSelection({ notify = true } = {}) {
   selectedTrackRequest += 1;
   selectedTrackMmsi = null;
   trackData = { type: 'FeatureCollection', features: [] };
   map?.getSource('tracks')?.setData(trackData);
   setLayerToggle('#trackLayerToggle', 'tracks', false);
+  syncSelectedSuspectMarker();
   updateTrackSelectionStatus();
   renderTrackCatalog();
   if (notify) showMessage('Historical track cleared');
@@ -1276,7 +1307,9 @@ function renderTrackCatalog() {
     const start = formatDate(properties.start_time);
     const end = formatDate(properties.end_time);
     const isSelected = String(properties.mmsi) === String(selectedTrackMmsi || '');
-    return `<div class="track-catalog-row ${isSelected ? 'is-selected' : ''}" role="row"><div class="track-catalog-identity"><strong>${escapeHtml(name)}</strong><small>MMSI ${escapeHtml(properties.mmsi)}</small></div><span class="track-catalog-type">${escapeHtml(properties.ship_type || 'Unknown')}</span><span class="track-catalog-period">${escapeHtml(start)}<small>to ${escapeHtml(end)}</small></span><strong class="track-catalog-points">${numberValue(properties.point_count).toLocaleString()}</strong><button type="button" data-track-mmsi="${escapeHtml(properties.mmsi)}">${isSelected ? 'DISPLAYED' : 'SHOW TRACK'}</button></div>`;
+    const suspected = (suspiciousData.features || []).find(feature => String(feature.properties?.mmsi || '') === String(properties.mmsi || ''));
+    const suspectLabel = suspected ? ` · Suspected ${suspected.properties?.risk_level || ''} risk` : '';
+    return `<div class="track-catalog-row ${isSelected ? 'is-selected' : ''}" role="row"><div class="track-catalog-identity"><strong>${escapeHtml(name)}</strong><small>MMSI ${escapeHtml(properties.mmsi)}${escapeHtml(suspectLabel)}</small></div><span class="track-catalog-type">${escapeHtml(properties.ship_type || 'Unknown')}</span><span class="track-catalog-period">${escapeHtml(start)}<small>to ${escapeHtml(end)}</small></span><strong class="track-catalog-points">${numberValue(properties.point_count).toLocaleString()}</strong><button type="button" data-track-mmsi="${escapeHtml(properties.mmsi)}">${isSelected ? 'DISPLAYED' : 'SHOW TRACK'}</button></div>`;
   }).join('') : '<div class="empty-row">No vessels match this search.</div>';
 }
 
@@ -1311,6 +1344,7 @@ async function displaySingleTrack(mmsi, { closeCatalog = false } = {}) {
   trackData = collection;
   map.getSource('tracks')?.setData(trackData);
   setLayerToggle('#trackLayerToggle', 'tracks', true);
+  syncSelectedSuspectMarker();
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.view === 'tracks');
   });
@@ -1352,6 +1386,7 @@ function activateView(view) {
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', true);
     setLayerToggle('#warningLayerToggle', 'warnings', true);
   }
+  syncSelectedSuspectMarker();
 }
 
 async function showSelectedTrack() {
@@ -1458,7 +1493,13 @@ function bindControls() {
   });
   $('#pollutionLayerToggle').addEventListener('change', event => setLayerGroupVisibility('pollution', event.currentTarget.checked));
   $('#riskLayerToggle').addEventListener('change', event => setLayerGroupVisibility('risk', event.currentTarget.checked));
-  $('#suspiciousLayerToggle').addEventListener('change', event => setLayerGroupVisibility('suspicious', event.currentTarget.checked));
+  $('#suspiciousLayerToggle').addEventListener('change', event => {
+    const requestedVisible = event.currentTarget.checked;
+    syncSelectedSuspectMarker();
+    if (requestedVisible && !event.currentTarget.checked) {
+      showMessage('Select a suspected vessel track in Operational Watch first');
+    }
+  });
   $('#warningLayerToggle').addEventListener('change', event => setLayerGroupVisibility('warnings', event.currentTarget.checked));
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));

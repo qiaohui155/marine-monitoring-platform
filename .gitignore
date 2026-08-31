@@ -15,6 +15,7 @@ frontend/dist/
 
 # Runtime and editor files
 *.log
+backend/logs/
 tmp/
 .vscode/
 .vs/

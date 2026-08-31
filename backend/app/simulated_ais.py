@@ -5,11 +5,13 @@ import logging
 import math
 import os
 import time
+from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from .config import DB_CONFIG
 
@@ -19,7 +21,16 @@ LOCK_NAME = "oman_marine_monitoring_simulated_ais"
 
 
 NEXT_POSITIONS_SQL = """
-WITH selected AS (
+WITH route_stats AS MATERIALIZED (
+    SELECT
+        route.route_id,
+        route.geom AS route_geom,
+        ST_Length(route.geom::geography) AS route_length_m,
+        ST_IsClosed(route.geom) AS route_is_closed
+    FROM public.shipping_route AS route
+    WHERE route.enabled = true
+),
+selected AS (
     SELECT
         state.mmsi,
         state.route_id,
@@ -29,10 +40,9 @@ WITH selected AS (
         state.lateral_offset_m,
         state.simulated_speed,
         state.last_track_time,
-        position.geom AS current_geom,
-        route.geom AS route_geom,
-        ST_Length(route.geom::geography) AS route_length_m,
-        ST_IsClosed(route.geom) AS route_is_closed,
+        route.route_geom,
+        route.route_length_m,
+        route.route_is_closed,
         CASE
             WHEN abs(state.lateral_offset_m) > 0.01 THEN state.lateral_offset_m
             ELSE (
@@ -48,9 +58,8 @@ WITH selected AS (
     FROM public.ship_motion_state AS state
     JOIN public.ship_position AS position
       ON position.mmsi = state.mmsi
-    JOIN public.shipping_route AS route
+    JOIN route_stats AS route
       ON route.route_id = state.route_id
-     AND route.enabled = true
     WHERE state.movement_enabled = true
       AND state.route_id IS NOT NULL
       AND state.motion_mode <> 'ANCHORED'
@@ -59,63 +68,15 @@ WITH selected AS (
     ORDER BY COALESCE(state.route_distance_m, 0), state.mmsi
     LIMIT %s
 ),
-current_route_geometry AS (
+raw_progress AS (
     SELECT
         selected.*,
         GREATEST(selected.simulated_speed, 0.1) * 0.514444 * %s AS movement_m,
-        ST_LineInterpolatePoint(
-            selected.route_geom,
-            selected.route_progress
-        ) AS current_route_point,
-        ST_LineInterpolatePoint(
-            selected.route_geom,
-            LEAST(
-                1.0,
-                GREATEST(
-                    0.0,
-                    selected.route_progress + selected.direction * 0.0005
-                )
-            )
-        ) AS current_route_probe
-    FROM selected
-),
-current_target AS (
-    SELECT
-        current_route_geometry.*,
-        CASE
-            WHEN ST_Equals(current_route_point, current_route_probe)
-                THEN radians(0.0)
-            ELSE ST_Azimuth(
-                current_route_point::geography,
-                current_route_probe::geography
-            )
-        END AS current_route_bearing
-    FROM current_route_geometry
-),
-advance_decision AS (
-    SELECT
-        current_target.*,
-        ST_Project(
-            current_route_point::geography,
-            abs(effective_offset_m),
-            current_route_bearing
-              + CASE WHEN effective_offset_m >= 0 THEN pi() / 2 ELSE -pi() / 2 END
-        )::geometry AS current_target_geom
-    FROM current_target
-),
-raw_progress AS (
-    SELECT
-        advance_decision.*,
         route_progress
-        + CASE
-            WHEN ST_Distance(
-                    current_geom::geography,
-                    current_target_geom::geography
-                 ) <= GREATEST(movement_m * 1.5, 50.0)
-                THEN direction * movement_m / NULLIF(route_length_m, 0)
-            ELSE 0.0
-          END AS proposed_progress
-    FROM advance_decision
+          + direction
+          * (GREATEST(selected.simulated_speed, 0.1) * 0.514444 * %s)
+          / NULLIF(route_length_m, 0) AS proposed_progress
+    FROM selected
 ),
 normalised_progress AS (
     SELECT
@@ -137,7 +98,7 @@ normalised_progress AS (
         END AS next_direction
     FROM raw_progress
 ),
-next_route_geometry AS (
+route_geometry AS (
     SELECT
         normalised_progress.*,
         ST_LineInterpolatePoint(route_geom, next_progress) AS next_route_point,
@@ -150,43 +111,35 @@ next_route_geometry AS (
         ) AS next_route_probe
     FROM normalised_progress
 ),
-next_target AS (
+route_target AS (
     SELECT
-        next_route_geometry.*,
+        route_geometry.*,
         CASE
             WHEN ST_Equals(next_route_point, next_route_probe)
-                THEN current_route_bearing
-            ELSE ST_Azimuth(
-                next_route_point::geography,
-                next_route_probe::geography
-            )
+                THEN radians(0.0)
+            ELSE ST_Azimuth(next_route_point, next_route_probe)
         END AS next_route_bearing
-    FROM next_route_geometry
+    FROM route_geometry
 ),
 offset_target AS (
     SELECT
-        next_target.*,
-        ST_Project(
-            next_route_point::geography,
-            abs(effective_offset_m),
-            next_route_bearing
-              + CASE WHEN effective_offset_m >= 0 THEN pi() / 2 ELSE -pi() / 2 END
-        )::geometry AS target_geom
-    FROM next_target
-),
-new_geometry AS (
-    SELECT
-        offset_target.*,
-        CASE
-            WHEN ST_Distance(current_geom::geography, target_geom::geography) <= movement_m
-                THEN target_geom
-            ELSE ST_Project(
-                current_geom::geography,
-                movement_m,
-                ST_Azimuth(current_geom::geography, target_geom::geography)
-            )::geometry
-        END AS new_geom
-    FROM offset_target
+        route_target.*,
+        ST_Translate(
+            next_route_point,
+            abs(effective_offset_m)
+              * sin(
+                  next_route_bearing
+                  + CASE WHEN effective_offset_m >= 0 THEN pi() / 2 ELSE -pi() / 2 END
+                )
+              / NULLIF(111320.0 * cos(radians(ST_Y(next_route_point))), 0),
+            abs(effective_offset_m)
+              * cos(
+                  next_route_bearing
+                  + CASE WHEN effective_offset_m >= 0 THEN pi() / 2 ELSE -pi() / 2 END
+                )
+              / 111320.0
+        )::geometry(Point, 4326) AS new_geom
+    FROM route_target
 )
 SELECT
     mmsi,
@@ -197,17 +150,9 @@ SELECT
     last_track_time,
     ST_X(new_geom) AS longitude,
     ST_Y(new_geom) AS latitude,
-    CASE
-        WHEN ST_DWithin(current_geom::geography, new_geom::geography, 0.05)
-            THEN degrees(next_route_bearing) + 360.0
-                 - floor((degrees(next_route_bearing) + 360.0) / 360.0) * 360.0
-        ELSE degrees(ST_Azimuth(current_geom::geography, new_geom::geography)) + 360.0
-             - floor(
-                 (degrees(ST_Azimuth(current_geom::geography, new_geom::geography)) + 360.0)
-                 / 360.0
-             ) * 360.0
-    END AS course
-FROM new_geometry
+    degrees(next_route_bearing) + 360.0
+      - floor((degrees(next_route_bearing) + 360.0) / 360.0) * 360.0 AS course
+FROM offset_target
 ORDER BY mmsi
 """
 
@@ -220,6 +165,7 @@ WITH selected AS (
         state.local_progress,
         state.local_radius_m,
         state.anchor_geom,
+        state.last_track_time,
         state.simulated_speed AS state_speed,
         position.ship_type,
         COALESCE(position.speed, 0) AS current_speed,
@@ -326,6 +272,7 @@ SELECT
     next_local_progress,
     effective_radius_m,
     local_speed AS simulated_speed,
+    last_track_time,
     ST_X(new_geom) AS longitude,
     ST_Y(new_geom) AS latitude,
     CASE
@@ -344,38 +291,70 @@ ORDER BY mmsi
 
 
 UPDATE_POSITION_SQL = """
-UPDATE public.ship_position
-SET longitude = %s,
-    latitude = %s,
-    speed = %s,
-    course = %s,
+WITH updates AS (
+    SELECT *
+    FROM jsonb_to_recordset(%s::jsonb) AS value(
+        mmsi text,
+        longitude double precision,
+        latitude double precision,
+        simulated_speed double precision,
+        course double precision
+    )
+)
+UPDATE public.ship_position AS position
+SET longitude = updates.longitude,
+    latitude = updates.latitude,
+    speed = updates.simulated_speed,
+    course = updates.course,
     update_time = %s,
-    geom = ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-WHERE mmsi = %s
+    geom = ST_SetSRID(ST_MakePoint(updates.longitude, updates.latitude), 4326)
+FROM updates
+WHERE position.mmsi = updates.mmsi
 """
 
 
 UPDATE_STATE_SQL = """
-UPDATE public.ship_motion_state
-SET route_progress = %s,
-    direction = %s,
-    lateral_offset_m = %s,
-    simulated_course = %s,
+WITH updates AS (
+    SELECT *
+    FROM jsonb_to_recordset(%s::jsonb) AS value(
+        mmsi text,
+        next_progress double precision,
+        next_direction smallint,
+        effective_offset_m double precision,
+        course double precision
+    )
+)
+UPDATE public.ship_motion_state AS state
+SET route_progress = updates.next_progress,
+    direction = updates.next_direction,
+    lateral_offset_m = updates.effective_offset_m,
+    simulated_course = updates.course,
     track_enabled = true,
     last_position_time = %s,
     updated_at = %s
-WHERE mmsi = %s
+FROM updates
+WHERE state.mmsi = updates.mmsi
 """
 
 
 UPDATE_LOCAL_STATE_SQL = """
-UPDATE public.ship_motion_state
-SET local_progress = %s,
-    local_radius_m = %s,
-    simulated_course = %s,
+WITH updates AS (
+    SELECT *
+    FROM jsonb_to_recordset(%s::jsonb) AS value(
+        mmsi text,
+        next_local_progress double precision,
+        effective_radius_m double precision,
+        course double precision
+    )
+)
+UPDATE public.ship_motion_state AS state
+SET local_progress = updates.next_local_progress,
+    local_radius_m = updates.effective_radius_m,
+    simulated_course = updates.course,
     last_position_time = %s,
     updated_at = %s
-WHERE mmsi = %s
+FROM updates
+WHERE state.mmsi = updates.mmsi
 """
 
 
@@ -548,6 +527,7 @@ def _calculate_route_positions(cursor: Any, settings: dict[str, Any]) -> list[di
             settings["max_join_metres"],
             settings["max_vessels"],
             settings["update_seconds"] * settings["movement_scale"],
+            settings["update_seconds"] * settings["movement_scale"],
         ),
     )
     return [dict(row) for row in cursor.fetchall()]
@@ -577,60 +557,79 @@ def _save_cycle(
     cursor.execute("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AS cycle_time")
     cycle_time = cursor.fetchone()["cycle_time"]
 
-    cursor.executemany(
+    cursor.execute(
         UPDATE_POSITION_SQL,
-        [
-            (
-                row["longitude"],
-                row["latitude"],
-                row["simulated_speed"],
-                row["course"],
-                cycle_time,
-                row["longitude"],
-                row["latitude"],
-                row["mmsi"],
-            )
-            for row in positions
-        ],
+        (
+            Jsonb(
+                [
+                    {
+                        "mmsi": row["mmsi"],
+                        "longitude": row["longitude"],
+                        "latitude": row["latitude"],
+                        "simulated_speed": row["simulated_speed"],
+                        "course": row["course"],
+                    }
+                    for row in positions
+                ]
+            ),
+            cycle_time,
+        ),
     )
     if route_positions:
-        cursor.executemany(
+        cursor.execute(
             UPDATE_STATE_SQL,
-            [
-                (
-                    row["next_progress"],
-                    row["next_direction"],
-                    row["effective_offset_m"],
-                    row["course"],
-                    cycle_time,
-                    cycle_time,
-                    row["mmsi"],
-                )
-                for row in route_positions
-            ],
+            (
+                Jsonb(
+                    [
+                        {
+                            "mmsi": row["mmsi"],
+                            "next_progress": row["next_progress"],
+                            "next_direction": row["next_direction"],
+                            "effective_offset_m": row["effective_offset_m"],
+                            "course": row["course"],
+                        }
+                        for row in route_positions
+                    ]
+                ),
+                cycle_time,
+                cycle_time,
+            ),
         )
 
     if local_positions:
-        cursor.executemany(
+        cursor.execute(
             UPDATE_LOCAL_STATE_SQL,
-            [
-                (
-                    row["next_local_progress"],
-                    row["effective_radius_m"],
-                    row["course"],
-                    cycle_time,
-                    cycle_time,
-                    row["mmsi"],
-                )
-                for row in local_positions
-            ],
+            (
+                Jsonb(
+                    [
+                        {
+                            "mmsi": row["mmsi"],
+                            "next_local_progress": row["next_local_progress"],
+                            "effective_radius_m": row["effective_radius_m"],
+                            "course": row["course"],
+                        }
+                        for row in local_positions
+                    ]
+                ),
+                cycle_time,
+                cycle_time,
+            ),
         )
 
-    if route_positions:
+    due_cutoff = cycle_time - timedelta(seconds=settings["track_seconds"])
+    trackable_positions = route_positions + [
+        row for row in local_positions if row["simulated_speed"] > 0
+    ]
+    track_mmsis = [
+        row["mmsi"]
+        for row in trackable_positions
+        if row["last_track_time"] is None or row["last_track_time"] <= due_cutoff
+    ]
+    if track_mmsis:
         cursor.execute(
             APPEND_TRACK_SQL,
             (
-                [row["mmsi"] for row in route_positions],
+                track_mmsis,
                 cycle_time,
                 settings["track_seconds"],
                 settings["track_min_metres"],

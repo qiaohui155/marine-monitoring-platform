@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oman Marine Intelligence Center</title>
+  <title>Musandam Marine Intelligence Center</title>
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260826-track-screening" />
+  <link rel="stylesheet" href="styles.css?v=20260831-musandam-area" />
 </head>
 <body>
   <main class="platform-shell">
@@ -16,12 +16,12 @@
         <div class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 48 48"><path d="M24 4l5.6 8.4 10.2 2.9-6.4 8.2 1.2 10.8L24 30.6l-10.6 3.7 1.2-10.8-6.4-8.2 10.2-2.9L24 4z"/><path d="M13 38c6.8 4.2 15.2 4.2 22 0M17 43c4.8 1.6 9.2 1.6 14 0"/></svg>
         </div>
-        <div><strong>Oman Marine Intelligence</strong><span>LOCAL GIS OPERATIONS</span></div>
+        <div><strong>Musandam Marine Intelligence</strong><span>LOCAL GIS OPERATIONS</span></div>
       </div>
 
       <div class="title-lockup">
-        <h1>MARINE MONITORING &amp; WARNING CENTER</h1>
-        <p>Oman Marine Pollution &amp; Vessel Monitoring Platform</p>
+        <h1>MUSANDAM MARINE MONITORING &amp; WARNING CENTER</h1>
+        <p>Satellite, Marine Pollution &amp; Vessel Monitoring Platform</p>
       </div>
 
       <div class="header-status">
@@ -37,7 +37,7 @@
     </header>
 
     <section class="map-workspace" aria-label="Marine monitoring workspace">
-      <section id="map" aria-label="Gulf of Oman vessel map"></section>
+      <section id="map" aria-label="Musandam and Strait of Hormuz vessel map"></section>
       <div class="map-vignette" aria-hidden="true"></div>
 
       <form class="map-search" id="searchForm">
@@ -96,7 +96,7 @@
       </aside>
 
       <aside class="map-tools" aria-label="Map navigation tools">
-        <button id="homeMap" type="button" title="Return to Gulf of Oman"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-6v-6h-4v6H4v-9z"/></svg></button>
+        <button id="homeMap" type="button" title="Return to Musandam monitoring area"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-6v-6h-4v6H4v-9z"/></svg></button>
         <button id="zoomIn" type="button" title="Zoom in">+</button>
         <button id="zoomOut" type="button" title="Zoom out">−</button>
         <button id="toggleLabels" type="button" class="active" title="Toggle ship labels">Aa</button>
@@ -145,7 +145,7 @@
           <label class="layer-switch"><span><i class="layer-dot tracks"></i>Historical tracks</span><input id="trackLayerToggle" type="checkbox"><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot pollution"></i>Pollution events</span><input id="pollutionLayerToggle" type="checkbox" checked><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot risk"></i>Risk areas</span><input id="riskLayerToggle" type="checkbox"><em></em></label>
-          <label class="layer-switch"><span><i class="layer-dot suspicious"></i>Suspected vessels</span><input id="suspiciousLayerToggle" type="checkbox" checked><em></em></label>
+          <label class="layer-switch"><span><i class="layer-dot suspicious"></i>Selected suspected vessel</span><input id="suspiciousLayerToggle" type="checkbox"><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot warning"></i>Warning areas</span><input id="warningLayerToggle" type="checkbox"><em></em></label>
           <p class="data-note"><i></i>Layers are refreshed automatically through the local PostGIS API.</p>
         </div>
@@ -253,10 +253,10 @@
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="business-section-intro"><div><strong>Monitoring Focus</strong><span>Quick access to current vessel activity in priority coastal and port areas.</span></div><em>Gulf of Oman</em></div>
+          <div class="business-section-intro"><div><strong>Monitoring Focus</strong><span>Quick access to vessel activity in Musandam and the Strait of Hormuz approaches.</span></div><em>Musandam</em></div>
           <div class="panel-view-actions"><button type="button" class="view-action active" data-view="vessels">LIVE VESSELS</button><button type="button" class="view-action" data-view="tracks">HISTORICAL TRACKS</button></div>
           <div data-watch-content="vessels">
-            <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>SOHAR</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>MUSCAT</span><strong>LIVE</strong><small>Coastal watch</small></article><article><span>DUQM</span><strong>LIVE</strong><small>Offshore watch</small></article></div>
+            <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>KHASAB</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>KUMZAR</span><strong>LIVE</strong><small>Northern approach</small></article><article><span>DIBBA</span><strong>LIVE</strong><small>Eastern coast</small></article></div>
           </div>
           <div class="track-catalog" data-watch-content="tracks" hidden>
             <div class="track-catalog-toolbar">
@@ -404,6 +404,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260826-track-screening"></script>
+  <script src="app.js?v=20260831-selected-suspect"></script>
 </body>
 </html>
