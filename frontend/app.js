@@ -1396,7 +1396,7 @@ async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = nul
   setOperationalWatchContent();
   const bounds = new maplibregl.LngLatBounds();
   track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
-  map.fitBounds(bounds, { padding: 80, maxZoom: 9, duration: 900 });
+  map.fitBounds(bounds, { padding: 110, maxZoom: 14.5, duration: 900 });
   updateTrackSelectionStatus(track);
   renderTrackCatalog();
   if (closeCatalog) floatingPanelManager?.hide('operational-watch');
