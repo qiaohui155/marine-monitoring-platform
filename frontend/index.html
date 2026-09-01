@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260901-track-query" />
+  <link rel="stylesheet" href="styles.css?v=20260901-track-query-time" />
 </head>
 <body>
   <main class="platform-shell">
@@ -261,8 +261,14 @@
             <div class="track-selection-status" id="trackSelectionStatus" data-active="false"><span>Selected track</span><strong>No vessel selected</strong><small>Enter a vessel number/name and time range below.</small></div>
             <form class="track-catalog-query" id="trackCatalogQuery">
               <label class="track-query-vessel"><span>Vessel number / name</span><input id="trackCatalogSearch" type="search" placeholder="Enter MMSI or exact ship name" autocomplete="off" required></label>
-              <label><span>Start time</span><input id="trackQueryStart" type="datetime-local" step="1" required></label>
-              <label><span>End time</span><input id="trackQueryEnd" type="datetime-local" step="1" required></label>
+              <div class="track-query-datetime">
+                <label><span>Start date</span><input id="trackQueryStartDate" type="date" required></label>
+                <label><span>Start time (HH:MM:SS)</span><input id="trackQueryStartClock" type="time" step="1" required></label>
+              </div>
+              <div class="track-query-datetime">
+                <label><span>End date</span><input id="trackQueryEndDate" type="date" required></label>
+                <label><span>End time (HH:MM:SS)</span><input id="trackQueryEndClock" type="time" step="1" required></label>
+              </div>
               <button type="submit">QUERY TRACK</button>
               <button type="reset" class="secondary">RESET</button>
             </form>
@@ -404,6 +410,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260901-track-query"></script>
+  <script src="app.js?v=20260901-track-query-time"></script>
 </body>
 </html>

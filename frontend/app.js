@@ -1298,10 +1298,15 @@ function setOperationalWatchContent() {
 }
 
 function trackQueryFilters() {
+  const startDate = $('#trackQueryStartDate')?.value || '';
+  const startClock = $('#trackQueryStartClock')?.value || '';
+  const endDate = $('#trackQueryEndDate')?.value || '';
+  const endClock = $('#trackQueryEndClock')?.value || '';
+  const withSeconds = value => value && value.length === 5 ? `${value}:00` : value;
   return {
     vessel: ($('#trackCatalogSearch')?.value || '').trim(),
-    startTime: $('#trackQueryStart')?.value || '',
-    endTime: $('#trackQueryEnd')?.value || ''
+    startTime: startDate && startClock ? `${startDate}T${withSeconds(startClock)}` : '',
+    endTime: endDate && endClock ? `${endDate}T${withSeconds(endClock)}` : ''
   };
 }
 
@@ -1559,8 +1564,9 @@ function bindControls() {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
   });
   $('#trackCatalogSearch')?.addEventListener('input', renderTrackCatalog);
-  $('#trackQueryStart')?.addEventListener('input', renderTrackCatalog);
-  $('#trackQueryEnd')?.addEventListener('input', renderTrackCatalog);
+  ['#trackQueryStartDate', '#trackQueryStartClock', '#trackQueryEndDate', '#trackQueryEndClock'].forEach(selector => {
+    $(selector)?.addEventListener('input', renderTrackCatalog);
+  });
   $('#trackCatalogQuery')?.addEventListener('submit', event => {
     submitTrackQuery(event).catch(error => showMessage(error.message));
   });
