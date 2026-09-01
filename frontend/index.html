@@ -7,7 +7,7 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260831-musandam-area" />
+  <link rel="stylesheet" href="styles.css?v=20260901-track-query" />
 </head>
 <body>
   <main class="platform-shell">
@@ -78,7 +78,7 @@
           <svg viewBox="0 0 24 24"><path d="M4 18V9M10 18V5M16 18v-7M22 18V3"/><path d="M2 18h21"/></svg><span class="tool-tooltip"><b>08</b> Incident Status</span>
         </button>
         <button class="toolbar-button" type="button" data-panel-target="operational-watch" aria-pressed="false">
-          <svg viewBox="0 0 24 24"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="tool-tooltip"><b>09</b> Operational Watch</span>
+          <svg viewBox="0 0 24 24"><path d="M4 17c2.5-4 4.8-6 7-6 2.4 0 3.5 2 5.5 2 1.2 0 2.3-.7 3.5-2"/><path d="M4 7h5M4 11h3M4 15h2"/><circle cx="18" cy="7" r="2"/></svg><span class="tool-tooltip"><b>09</b> Historical Tracks</span>
         </button>
         <span class="toolbar-divider" aria-hidden="true"></span>
         <button class="toolbar-button" type="button" data-panel-target="satellite-products" aria-pressed="false">
@@ -142,7 +142,6 @@
         <div class="floating-panel-body layer-list">
           <div class="business-section-intro"><div><strong>Operational Layers</strong><span>Control the spatial information displayed above the selected basemap.</span></div><em>Local PostGIS layers</em></div>
           <label class="layer-switch"><span><i class="layer-dot vessels"></i>Vessel positions</span><input id="vesselLayerToggle" type="checkbox" checked><em></em></label>
-          <label class="layer-switch"><span><i class="layer-dot tracks"></i>Historical tracks</span><input id="trackLayerToggle" type="checkbox"><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot pollution"></i>Pollution events</span><input id="pollutionLayerToggle" type="checkbox" checked><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot risk"></i>Risk areas</span><input id="riskLayerToggle" type="checkbox"><em></em></label>
           <label class="layer-switch"><span><i class="layer-dot suspicious"></i>Selected suspected vessel</span><input id="suspiciousLayerToggle" type="checkbox"><em></em></label>
@@ -249,22 +248,24 @@
 
       <section class="floating-panel business-dialog business-dialog-09" data-floating-panel="operational-watch" data-centered="true" aria-hidden="true">
         <header class="floating-panel-header" data-drag-handle>
-          <div class="business-dialog-title"><span>09</span><h2>OPERATIONAL WATCH</h2></div>
+          <div class="business-dialog-title"><span>09</span><h2>HISTORICAL TRACK QUERY</h2></div>
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="business-section-intro"><div><strong>Monitoring Focus</strong><span>Quick access to vessel activity in Musandam and the Strait of Hormuz approaches.</span></div><em>Musandam</em></div>
-          <div class="panel-view-actions"><button type="button" class="view-action active" data-view="vessels">LIVE VESSELS</button><button type="button" class="view-action" data-view="tracks">HISTORICAL TRACKS</button></div>
-          <div data-watch-content="vessels">
-            <div class="watch-grid"><article><span>HORMUZ</span><strong>24/7</strong><small>Strait watch</small></article><article><span>KHASAB</span><strong>LIVE</strong><small>Port traffic</small></article><article><span>KUMZAR</span><strong>LIVE</strong><small>Northern approach</small></article><article><span>DIBBA</span><strong>LIVE</strong><small>Eastern coast</small></article></div>
-          </div>
-          <div class="track-catalog" data-watch-content="tracks" hidden>
+          <div class="business-section-intro"><div><strong>Historical Track Query</strong><span>Query one vessel by vessel number/name and time range. Duplicate records are removed before the route is drawn.</span></div><em>Musandam</em></div>
+          <div class="track-catalog">
             <div class="track-catalog-toolbar">
               <div><strong id="trackCatalogCount">0 vessels</strong><span>Select a vessel to display only its historical track.</span></div>
               <button type="button" id="clearTrackSelection" disabled>CLEAR TRACK</button>
             </div>
-            <div class="track-selection-status" id="trackSelectionStatus" data-active="false"><span>Selected track</span><strong>No vessel selected</strong><small>Use the list below or open a vessel and choose “Show Historical Track”.</small></div>
-            <label class="track-catalog-search"><span>Search vessel</span><input id="trackCatalogSearch" type="search" placeholder="Ship name or MMSI" autocomplete="off"></label>
+            <div class="track-selection-status" id="trackSelectionStatus" data-active="false"><span>Selected track</span><strong>No vessel selected</strong><small>Enter a vessel number/name and time range below.</small></div>
+            <form class="track-catalog-query" id="trackCatalogQuery">
+              <label class="track-query-vessel"><span>Vessel number / name</span><input id="trackCatalogSearch" type="search" placeholder="Enter MMSI or exact ship name" autocomplete="off" required></label>
+              <label><span>Start time</span><input id="trackQueryStart" type="datetime-local" step="1" required></label>
+              <label><span>End time</span><input id="trackQueryEnd" type="datetime-local" step="1" required></label>
+              <button type="submit">QUERY TRACK</button>
+              <button type="reset" class="secondary">RESET</button>
+            </form>
             <div class="track-catalog-table" role="table" aria-label="Vessels with historical tracks">
               <div class="track-catalog-head" role="row"><span>VESSEL</span><span>TYPE</span><span>TRACK PERIOD</span><span>POINTS</span><span>ACTION</span></div>
               <div class="track-catalog-list" id="trackCatalogList"><div class="empty-row">Loading historical-track vessels…</div></div>
@@ -385,7 +386,6 @@
           <div class="detail-update"><span>Latest database position</span><strong id="detailTime">—</strong></div>
           <div class="detail-metrics"><article><span>Speed</span><strong id="detailSpeed">—</strong></article><article><span>Course</span><strong id="detailCourse">—</strong></article><article><span>Latitude</span><strong id="detailLatitude">—</strong></article><article><span>Longitude</span><strong id="detailLongitude">—</strong></article></div>
           <dl class="detail-list"><div><dt>Vessel type</dt><dd id="detailType">—</dd></div><div><dt>MMSI</dt><dd id="detailMmsi">—</dd></div><div><dt>Database ID</dt><dd id="detailId">—</dd></div></dl>
-          <button class="panel-action" id="showTrackButton" type="button">SHOW HISTORICAL TRACK</button>
         </div>
       </section>
 
@@ -404,6 +404,6 @@
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
   <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260831-selected-suspect"></script>
+  <script src="app.js?v=20260901-track-query"></script>
 </body>
 </html>

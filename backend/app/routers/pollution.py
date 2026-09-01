@@ -128,6 +128,34 @@ def list_pollution_candidate_vessels(
             ORDER BY a.id NULLS LAST
             LIMIT 1
         ),
+        candidate_mmsi AS MATERIALIZED (
+            SELECT DISTINCT ON (t.mmsi)
+                t.mmsi,
+                t.update_time AS match_time
+            FROM public.ship_track t
+            CROSS JOIN event_context e
+            WHERE t.geom && ST_Expand(e.geom, %s / 45.0)
+              AND ST_DWithin(t.geom::geography, e.geom::geography, %s * 1852.0)
+            ORDER BY
+                t.mmsi,
+                ST_Distance(t.geom::geography, e.geom::geography),
+                abs(EXTRACT(EPOCH FROM (t.update_time - e.event_time)))
+        ),
+        candidate_tracks AS MATERIALIZED (
+            SELECT
+                t.mmsi,
+                max(t.ship_name::text) AS ship_name,
+                max(t.ship_type::text) AS ship_type,
+                min(t.update_time) AS start_time,
+                max(t.update_time) AS end_time,
+                count(*) AS point_count,
+                candidate.match_time,
+                ST_MakeLine(t.geom ORDER BY t.update_time)::geometry(LineString, 4326) AS geom
+            FROM public.ship_track t
+            JOIN candidate_mmsi candidate USING (mmsi)
+            GROUP BY t.mmsi, candidate.match_time
+            HAVING count(*) >= 2
+        ),
         matches AS (
             SELECT
                 t.mmsi,
@@ -136,10 +164,11 @@ def list_pollution_candidate_vessels(
                 t.start_time,
                 t.end_time,
                 t.point_count,
+                t.match_time,
                 ST_Intersects(t.geom, e.geom) AS intersects_event,
                 ST_Distance(t.geom::geography, e.geom::geography) / 1852.0 AS distance_nm,
                 ST_Length(t.geom::geography) / 1852.0 AS track_distance_nm
-            FROM public.ship_track_lines t
+            FROM candidate_tracks t
             CROSS JOIN event_context e
             WHERE ST_DWithin(t.geom::geography, e.geom::geography, %s * 1852.0)
         )
@@ -150,6 +179,7 @@ def list_pollution_candidate_vessels(
             start_time,
             end_time,
             point_count,
+            match_time,
             intersects_event,
             CASE WHEN intersects_event THEN 'INTERSECTS' ELSE 'NEARBY' END AS match_type,
             ROUND(distance_nm::numeric, 2) AS distance_nm,
@@ -168,7 +198,7 @@ def list_pollution_candidate_vessels(
                 event_row = cursor.fetchone()
                 if event_row is None:
                     raise HTTPException(status_code=404, detail="Pollution event not found")
-                cursor.execute(sql, (event_id, nearby_nm, limit))
+                cursor.execute(sql, (event_id, nearby_nm, nearby_nm, nearby_nm, limit))
                 rows = [dict(row) for row in cursor.fetchall()]
     except HTTPException:
         raise
