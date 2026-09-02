@@ -29,13 +29,13 @@ const TYPE_COLORS = {
 };
 
 let map;
+let locatedFeatureMarker = null;
 let vesselData = { type: 'FeatureCollection', features: [] };
 let renderedVesselData = { type: 'FeatureCollection', features: [] };
 let trackData = { type: 'FeatureCollection', features: [] };
 let trackCatalogData = [];
 let trackCatalogLoadedAt = 0;
 let pollutionData = { type: 'FeatureCollection', features: [] };
-let riskData = { type: 'FeatureCollection', features: [] };
 let suspiciousData = { type: 'FeatureCollection', features: [] };
 let warningData = { type: 'FeatureCollection', features: [] };
 let recentPollutionEvents = [];
@@ -69,9 +69,7 @@ const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
   tracks: ['track-lines'],
   pollution: ['pollution-fills', 'pollution-outlines'],
-  risk: ['risk-fills', 'risk-outlines'],
-  suspicious: ['suspicious-ships'],
-  warnings: ['warning-fills', 'warning-outlines']
+  suspicious: ['suspicious-ships']
 };
 
 const $ = selector => document.querySelector(selector);
@@ -232,41 +230,7 @@ function bindLayerPopup(layerId, contentBuilder) {
 }
 
 function addOperationalLayers() {
-  map.addSource('risk-areas', { type: 'geojson', data: riskData });
-  map.addLayer({
-    id: 'risk-fills',
-    type: 'fill',
-    source: 'risk-areas',
-    layout: { visibility: 'none' },
-    paint: {
-      'fill-color': ['coalesce', ['get', 'fill_hex'], '#e4b64b'],
-      'fill-opacity': .22
-    }
-  });
-  map.addLayer({
-    id: 'risk-outlines',
-    type: 'line',
-    source: 'risk-areas',
-    layout: { visibility: 'none' },
-    paint: { 'line-color': ['coalesce', ['get', 'fill_hex'], '#b57c22'], 'line-width': 1.2, 'line-opacity': .8 }
-  });
-
-  map.addSource('warnings', { type: 'geojson', data: warningData });
-  map.addLayer({
-    id: 'warning-fills',
-    type: 'fill',
-    source: 'warnings',
-    layout: { visibility: 'none' },
-    paint: { 'fill-color': '#f39c32', 'fill-opacity': .12 }
-  });
-  map.addLayer({
-    id: 'warning-outlines',
-    type: 'line',
-    source: 'warnings',
-    layout: { visibility: 'none' },
-    paint: { 'line-color': '#e67e22', 'line-width': 2, 'line-dasharray': [2, 1.5] }
-  });
-
+  // 仅绘制油污业务区域；预警记录仍可供信息窗口使用，但不绘制预警/风险范围。
   map.addSource('pollution', { type: 'geojson', data: pollutionData });
   map.addLayer({
     id: 'pollution-fills',
@@ -318,9 +282,6 @@ function addOperationalLayers() {
   bindLayerPopup('pollution-fills', p => popupHtml('Pollution event', p.event_id, [
     ['Level', p.level], ['Status', p.status], ['Area', p.area_km2 ? `${p.area_km2} km²` : null], ['Detected', formatDate(p.event_time)]
   ]));
-  bindLayerPopup('risk-fills', p => popupHtml('Risk area', p.area_name, [
-    ['Risk level', p.risk_level], ['Coefficient', p.coefficient], ['Basis', p.basis]
-  ]));
   bindLayerPopup('suspicious-ships', p => popupHtml('Suspected vessel', p.ship_name || p.mmsi, [
     ['MMSI', p.mmsi], ['Risk level', p.risk_level], ['Reason', p.reason], ['Map action', 'Displaying this vessel’s historical track']
   ]));
@@ -329,9 +290,6 @@ function addOperationalLayers() {
     if (!mmsi) return;
     displaySingleTrack(mmsi).catch(error => showMessage(error.message));
   });
-  bindLayerPopup('warning-fills', p => popupHtml('Warning area', p.warning_name, [
-    ['Level', p.warning_level], ['Reason', p.reason], ['Issued', formatDate(p.warning_time)]
-  ]));
 }
 
 function addVesselLayers() {
@@ -673,13 +631,41 @@ function refreshRequirementModules() {
   renderTrackCatalog();
 }
 
-function locateFeature(feature, message, { warning = false } = {}) {
+function clearLocatedFeature() {
+  if (!locatedFeatureMarker) return;
+  locatedFeatureMarker.getPopup()?.remove();
+  locatedFeatureMarker.remove();
+  locatedFeatureMarker = null;
+}
+
+function locateFeature(feature, message) {
   const center = featureCenter(feature);
   if (!center || !map) return showMessage('This record has no valid map location');
   activateView('pollution');
-  if (warning) setLayerToggle('#warningLayerToggle', 'warnings', true);
   floatingPanelManager?.hideAll();
-  map.flyTo({ center, zoom: Math.max(map.getZoom(), 7.4), speed: 1.05 });
+  clearLocatedFeature();
+  const properties = feature.properties || {};
+  const title = properties.warning_name || properties.event_id || 'Selected location';
+  const popup = new maplibregl.Popup({ closeButton: true, maxWidth: '310px', offset: 28 })
+    .setHTML(popupHtml('Located record', title, [
+      ['Longitude', center[0].toFixed(6)],
+      ['Latitude', center[1].toFixed(6)],
+      ['Record time', formatDate(properties.warning_time || properties.event_time)]
+    ]));
+  // 只标出当前点击记录的位置，不恢复预警圈或风险区域。
+  locatedFeatureMarker = new maplibregl.Marker({ color: '#2f76d2', scale: 1.15 })
+    .setLngLat(center)
+    .setPopup(popup)
+    .addTo(map);
+  locatedFeatureMarker.getElement().title = `${title} · ${center[0].toFixed(5)}, ${center[1].toFixed(5)}`;
+  map.stop();
+  map.resize();
+  map.flyTo({
+    center,
+    zoom: Math.min(map.getMaxZoom(), Math.max(map.getZoom(), 12)),
+    padding: 0,
+    duration: 1000
+  });
   showMessage(message);
 }
 
@@ -1056,7 +1042,7 @@ async function loadOperationalLayers({ initial = false } = {}) {
   const requestedTrackMmsi = selectedTrackMmsi;
   const refreshCatalog = initial || !trackCatalogData.length || Date.now() - trackCatalogLoadedAt >= TRACK_CATALOG_REFRESH_MS;
   try {
-    const [catalogResult, selectedTrackResult, nextPollution, nextRisk, nextSuspicious, nextWarnings] = await Promise.all([
+    const [catalogResult, selectedTrackResult, nextPollution, nextSuspicious, nextWarnings] = await Promise.all([
       refreshCatalog ? fetchGeoJson('/api/tracks/catalog?limit=5000') : Promise.resolve(null),
       requestedTrackMmsi
         ? fetchGeoJson(selectedTrackUrl(requestedTrackMmsi, {
@@ -1066,7 +1052,6 @@ async function loadOperationalLayers({ initial = false } = {}) {
         }))
         : Promise.resolve({ type: 'FeatureCollection', features: [] }),
       fetchGeoJson('/api/pollution-events?limit=1000'),
-      fetchGeoJson('/api/risk-areas?limit=1000'),
       fetchGeoJson('/api/suspicious-ships?limit=1000'),
       fetchGeoJson('/api/warnings?limit=1000')
     ]);
@@ -1078,15 +1063,12 @@ async function loadOperationalLayers({ initial = false } = {}) {
       trackData = selectedTrackResult;
     }
     pollutionData = nextPollution;
-    riskData = nextRisk;
     suspiciousData = nextSuspicious;
     warningData = nextWarnings;
     if (mapLayersReady) {
       map.getSource('tracks')?.setData(trackData);
       map.getSource('pollution')?.setData(pollutionData);
-      map.getSource('risk-areas')?.setData(riskData);
       map.getSource('suspicious')?.setData(suspiciousData);
-      map.getSource('warnings')?.setData(warningData);
     }
     syncSelectedSuspectMarker();
     updateTrackSelectionStatus();
@@ -1396,6 +1378,7 @@ async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = nul
   setOperationalWatchContent();
   const bounds = new maplibregl.LngLatBounds();
   track.geometry.coordinates.forEach(coordinate => bounds.extend(coordinate));
+  clearLocatedFeature();
   map.fitBounds(bounds, { padding: 110, maxZoom: 14.5, duration: 900 });
   updateTrackSelectionStatus(track);
   renderTrackCatalog();
@@ -1442,24 +1425,18 @@ function activateView(view) {
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', false);
     setLayerToggle('#pollutionLayerToggle', 'pollution', false);
-    setLayerToggle('#riskLayerToggle', 'risk', false);
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', false);
-    setLayerToggle('#warningLayerToggle', 'warnings', false);
   } else if (view === 'tracks') {
     setOperationalWatchContent('tracks');
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', Boolean(selectedTrackMmsi && trackData.features?.length));
     setLayerToggle('#pollutionLayerToggle', 'pollution', false);
-    setLayerToggle('#riskLayerToggle', 'risk', false);
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', false);
-    setLayerToggle('#warningLayerToggle', 'warnings', false);
   } else if (view === 'pollution') {
     setLayerToggle('#vesselLayerToggle', 'vessels', true);
     setLayerToggle('#trackLayerToggle', 'tracks', false);
     setLayerToggle('#pollutionLayerToggle', 'pollution', true);
-    setLayerToggle('#riskLayerToggle', 'risk', true);
     setLayerToggle('#suspiciousLayerToggle', 'suspicious', true);
-    setLayerToggle('#warningLayerToggle', 'warnings', true);
   }
   syncSelectedSuspectMarker();
 }
@@ -1511,9 +1488,13 @@ function bindControls() {
       startingZIndex: 1100
     }).init();
   }
-  $('#homeMap').addEventListener('click', () => map.flyTo({ ...HOME, speed:1.1 }));
+  $('#homeMap').addEventListener('click', () => {
+    clearLocatedFeature();
+    map.flyTo({ ...HOME, padding: 0, speed:1.1 });
+  });
   $('#liveMapTool').addEventListener('click', () => {
     floatingPanelManager?.hideAll();
+    clearLocatedFeature();
     clearSelectedVessel();
     activateView('vessels');
     map.flyTo({ ...HOME, speed:1.1 });
@@ -1551,7 +1532,6 @@ function bindControls() {
     setLayerGroupVisibility('vessels', event.currentTarget.checked);
   });
   $('#pollutionLayerToggle').addEventListener('change', event => setLayerGroupVisibility('pollution', event.currentTarget.checked));
-  $('#riskLayerToggle').addEventListener('change', event => setLayerGroupVisibility('risk', event.currentTarget.checked));
   $('#suspiciousLayerToggle').addEventListener('change', event => {
     const requestedVisible = event.currentTarget.checked;
     syncSelectedSuspectMarker();
@@ -1559,7 +1539,6 @@ function bindControls() {
       showMessage('Select a suspected vessel track in Historical Track Query first');
     }
   });
-  $('#warningLayerToggle').addEventListener('change', event => setLayerGroupVisibility('warnings', event.currentTarget.checked));
   document.querySelectorAll('[data-view]').forEach(tab => {
     tab.addEventListener('click', () => activateView(tab.dataset.view));
   });
@@ -1633,7 +1612,8 @@ function bindControls() {
     const button = event.target.closest('[data-warning-id]');
     if (!button) return;
     const feature = (warningData.features || []).find(item => String(item.id ?? item.properties?.id) === String(button.dataset.warningId));
-    if (feature) locateFeature(feature, `${feature.properties?.warning_name || 'Warning area'} located`, { warning: true });
+    if (!feature) return showMessage('This warning record is no longer available. Refresh the list and try again.');
+    locateFeature(feature, `${feature.properties?.warning_name || 'Warning record'} located — blue pin marks the selected position`);
   });
   $('#evidenceEventSelect')?.addEventListener('change', renderEvidenceReadiness);
   $('#evidenceLocateEvent')?.addEventListener('click', () => {
