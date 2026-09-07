@@ -24,17 +24,22 @@ function harness() {
         remove() { this.removed = true; }
       },
       Marker: class {
-        constructor() { this.element = {}; markers.push(this); }
+        constructor(options = {}) { this.element = options.element || {}; markers.push(this); }
         setLngLat(coordinates) { this.coordinates = coordinates; return this; }
         setPopup(popup) { this.popup = popup; return this; }
         addTo() { return this; }
         getPopup() { return this.popup; }
         getElement() { return this.element; }
         remove() { this.removed = true; }
+      },
+      LngLatBounds: class {
+        constructor() { this.points = []; }
+        extend(point) { this.points.push(point); return this; }
       }
     },
     window: { location: { search: '' }, addEventListener() {} },
     document: {
+      createElement: () => ({}),
       addEventListener() {},
       querySelectorAll: () => [],
       querySelector(selector) {
@@ -54,6 +59,7 @@ function harness() {
       on(event, layer) { handlers.push([event, layer]); },
       getLayer: id => layers.get(id),
       getSource: id => sources.get(id),
+      getLayoutProperty: (id, property) => layers.get(id)?.layout?.[property],
       setLayoutProperty(id, name, value) {
         const layer = layers.get(id);
         layer.layout ||= {};
@@ -63,7 +69,8 @@ function harness() {
       getMaxZoom: () => 15,
       stop() {},
       resize() {},
-      flyTo(options) { flights.push(options); }
+      flyTo(options) { flights.push(options); },
+      fitBounds(bounds, options) { flights.push({ bounds, ...options }); }
     }
   });
   const boot = /\nstartClock\(\);\s*initMap\(\);\s*$/;
@@ -85,7 +92,7 @@ test('only pollution areas, tracks and selected suspects are created', () => {
   const { sources, layers, handlers } = harness();
   assert.deepEqual([...sources.keys()], ['pollution', 'tracks', 'suspicious']);
   assert.deepEqual([...layers.keys()], [
-    'pollution-fills', 'pollution-outlines', 'track-lines', 'suspicious-ships'
+    'pollution-fills', 'pollution-outlines', 'track-halo', 'track-lines', 'suspicious-ships'
   ]);
   assert.ok(handlers.every(([, layer]) => !/^(risk|warning)-/.test(layer)));
 });
@@ -103,7 +110,7 @@ test('view switching and record location never restore removed areas', () => {
   assert.equal(flights[0].zoom, 12);
   assert.equal(flights[0].padding, 0);
   assert.equal(sources.size, 3);
-  assert.equal(layers.size, 4);
+  assert.equal(layers.size, 5);
 });
 
 test('automatic refresh retains warning records without drawing their areas', async () => {
@@ -123,13 +130,13 @@ test('automatic refresh retains warning records without drawing their areas', as
   assert.equal(sources.get('pollution').data.features.length, 1);
   assert.equal(vm.runInContext('warningData.features.length', context), 1);
   assert.equal(sources.size, 3);
-  assert.equal(layers.size, 4);
+  assert.equal(layers.size, 5);
 });
 
 test('removed controls have no remaining bindings; pollution control stays', () => {
   assert.doesNotMatch(html + appSource, /riskLayerToggle|warningLayerToggle/);
   assert.match(html, /id="pollutionLayerToggle"/);
-  assert.match(html, /app\.js\?v=20260902-alert-locate-focus/);
+  assert.match(html, /app\.js\?v=20260903-auto-alerts/);
 });
 
 test('the alert LOCATE button centers its polygon, closes the panel and replaces the pin', () => {
@@ -161,7 +168,7 @@ test('the alert LOCATE button centers its polygon, closes the panel and replaces
   assert.equal(markers[0].getPopup().removed, true);
   assert.equal(markers.filter(marker => !marker.removed).length, 1);
   assert.equal(hiddenPanels(), 2);
-  assert.equal(layers.size, 4);
+  assert.equal(layers.size, 5);
   click('not-found');
   assert.equal(flights.length, 2);
 });
@@ -175,4 +182,56 @@ test('returning home clears the temporary location pin', () => {
   elements.get('#homeMap').listeners.click();
   assert.equal(markers[0].removed, true);
   assert.equal(vm.runInContext('locatedFeatureMarker', context), null);
+});
+
+test('candidate passage stays identified and time-bounded across automatic refresh', async () => {
+  const { context, layers, markers, elements } = harness();
+  const paths = [];
+  context.testFetch = async path => {
+    paths.push(path);
+    return path.includes('/catalog') ? { items: [] } : { type: 'FeatureCollection', features: [] };
+  };
+  vm.runInContext(`
+    fetchGeoJson = testFetch;
+    mapLayersReady = true;
+    var evidence = {
+      eventId: 'MS-003', eventTime: '2026-08-31T14:00:00', mmsi: '470000789',
+      ship_name: 'TANKER-0789', minutes_before_event: 10,
+      start_time: '2026-08-31T13:48:00', end_time: '2026-08-31T13:53:00',
+      match_time: '2026-08-31T13:50:00', point_count: 2, track_distance_nm: 0.3,
+      evidence_geometry: { type: 'LineString', coordinates: [[56.4,26.1],[56.5,26.2]] }
+    };
+  `, context);
+  await vm.runInContext("displaySingleTrack('470000789', { evidence })", context);
+  assert.equal(layers.get('track-lines').paint['line-color'], '#9f1239');
+  assert.match(markers.at(-1).element.innerHTML, /TANKER-0789/);
+  assert.match(markers.at(-1).element.innerHTML, /470000789/);
+  assert.match(markers.at(-1).element.title, /Historical segment end/);
+  assert.equal(elements.get('#selectedTrackInfo').hidden, false);
+  assert.match(elements.get('#selectedTrackBasis').textContent, /10.0 min before event/);
+  await vm.runInContext('loadOperationalLayers()', context);
+  assert.ok(paths.every(path => !path.startsWith('/api/tracks?')));
+  assert.equal(vm.runInContext('trackData.features[0].properties.end_time', context), '2026-08-31T13:53:00');
+  vm.runInContext('clearTrackSelection({ notify: false })', context);
+  assert.equal(markers.at(-1).removed, true);
+  assert.equal(elements.get('#selectedTrackInfo').hidden, true);
+});
+
+test('screening sends lookback hours and displays passage time', async () => {
+  const { context, elements } = harness();
+  const paths = [];
+  context.testFetch = async path => {
+    paths.push(path);
+    return { event_time: '2026-08-31T14:00:00', items: [{
+      mmsi: '123', ship_name: 'TEST', match_type: 'INTERSECTS',
+      start_time: '2026-08-31T13:40:00', end_time: '2026-08-31T13:50:00',
+      match_time: '2026-08-31T13:45:00', minutes_before_event: 15
+    }] };
+  };
+  vm.runInContext('fetchGeoJson = testFetch;', context);
+  await vm.runInContext("loadSourceCandidates('MS-003', 5, 6)", context);
+  assert.match(paths[0], /lookback_hours=6/);
+  assert.equal(vm.runInContext('sourceCandidateContext.lookbackHours', context), 6);
+  assert.match(elements.get('#sourceCandidateList').innerHTML, /15.0 min before event/);
+  assert.match(elements.get('#sourceCandidateList').innerHTML, /13:45:00 UTC/);
 });

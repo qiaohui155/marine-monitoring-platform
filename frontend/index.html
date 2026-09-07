@@ -7,7 +7,8 @@
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
-  <link rel="stylesheet" href="styles.css?v=20260901-track-query-time" />
+  <link rel="stylesheet" href="styles.css?v=20260902-pre-event-tracks" />
+  <link rel="stylesheet" href="alerts/alerts.css?v=20260903-auto-alerts" />
 </head>
 <body>
   <main class="platform-shell">
@@ -39,6 +40,10 @@
     <section class="map-workspace" aria-label="Marine monitoring workspace">
       <section id="map" aria-label="Musandam and Strait of Hormuz vessel map"></section>
       <div class="map-vignette" aria-hidden="true"></div>
+      <aside id="selectedTrackInfo" class="selected-track-info" hidden aria-live="polite">
+        <div><strong id="selectedTrackOwner"></strong><span id="selectedTrackPeriod"></span><small id="selectedTrackBasis"></small></div>
+        <button id="clearMapTrack" type="button" aria-label="Clear selected track">×</button>
+      </aside>
 
       <form class="map-search" id="searchForm">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
@@ -306,10 +311,11 @@
           <div class="panel-window-controls"><button type="button" data-panel-minimize title="Minimize">−</button><button type="button" data-panel-hide title="Hide">□</button><button type="button" data-panel-close title="Close">×</button></div>
         </header>
         <div class="floating-panel-body">
-          <div class="business-section-intro"><div><strong>Historical Track Screening</strong><span>Finds vessels whose historical track crossed the mapped pollution area or passed within the selected distance.</span></div><em id="sourceCandidateCount">0 candidates</em></div>
+          <div class="business-section-intro"><div><strong>Pre-event Track Screening</strong><span>Only passages BEFORE the pollution event, within the selected time window and distance, are considered.</span></div><em id="sourceCandidateCount">0 candidates</em></div>
           <div class="source-screening-controls">
             <label class="business-select"><span>Pollution event</span><select id="sourceEventSelect"><option value="">Waiting for event records</option></select></label>
             <label class="business-select"><span>Nearby distance</span><select id="sourceNearbyNm"><option value="5">5 NM</option><option value="10" selected>10 NM</option><option value="20">20 NM</option><option value="50">50 NM</option></select></label>
+            <label class="business-select"><span>Before event</span><select id="sourceLookbackHours"><option value="6">Previous 6 hours</option><option value="12">Previous 12 hours</option><option value="24" selected>Previous 24 hours</option><option value="48">Previous 48 hours</option><option value="72">Previous 72 hours</option><option value="168">Previous 7 days</option></select></label>
           </div>
           <div class="event-context-grid">
             <article><span>Event time</span><strong id="sourceEventTime">—</strong></article>
@@ -317,10 +323,10 @@
             <article><span>Center coordinates</span><strong id="sourceEventCoordinates">—</strong></article>
           </div>
           <div class="candidate-table">
-            <div class="candidate-table-head"><span>Vessel / track period</span><span>Type</span><span>Spatial match</span><span>Basis</span><span>Action</span></div>
+            <div class="candidate-table-head"><span>Vessel / passage period</span><span>Type</span><span>Spatial match</span><span>Passage time / before event</span><span>Action</span></div>
             <div id="sourceCandidateList"><div class="empty-row">Waiting for vessel and event data…</div></div>
           </div>
-          <p class="analysis-note">Candidates are derived from stored AIS track lines. “Track intersects” means the route entered the mapped footprint; “Track nearby” means its nearest distance is within the selected nautical-mile threshold.</p>
+          <p class="analysis-note">All times are UTC. Only adjacent AIS points strictly before the event are joined; gaps over 30 minutes are excluded. Passage times are estimated between observations. SHOW PASSAGE highlights the matching historical segment, not the vessel's current position. These are candidates for review, not confirmed pollution sources.</p>
           <div class="dialog-actions"><button class="business-primary-action" id="sourceLocateEvent" type="button">LOCATE EVENT</button></div>
         </div>
       </section>
@@ -407,7 +413,7 @@
   </main>
 
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-  <script src="floating-panels.js?v=20260819-floating-command-center"></script>
-  <script src="app.js?v=20260902-alert-locate-focus"></script>
+  <script src="floating-panels.js?v=20260903-register-panel"></script>
+  <script src="app.js?v=20260903-auto-alerts"></script>
 </body>
 </html>

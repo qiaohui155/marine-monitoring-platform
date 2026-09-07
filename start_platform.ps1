@@ -1,3 +1,7 @@
+param(
+    [switch]$AlertTest
+)
+
 $ErrorActionPreference = 'Stop'
 $PlatformDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDirectory = Join-Path $PlatformDirectory 'backend'
@@ -6,6 +10,7 @@ $Python = Join-Path $BackendDirectory '.venv\Scripts\python.exe'
 $BackendUrl = 'http://127.0.0.1:8000/'
 $DatabaseHealthUrl = 'http://127.0.0.1:8000/api/health'
 $FrontendUrl = 'http://127.0.0.1:5173/'
+$LaunchUrl = if ($AlertTest) { "$($FrontendUrl)?devAlerts=1&demoAlert=1" } else { $FrontendUrl }
 $EnvironmentFile = Join-Path $BackendDirectory '.env'
 
 function Read-DotEnv {
@@ -187,7 +192,7 @@ else {
 }
 
 Write-Host '[5/5] Opening the monitoring platform...'
-Start-Process $FrontendUrl
+Start-Process $LaunchUrl
 Write-Host ''
-Write-Host 'Platform URL: http://127.0.0.1:5173/' -ForegroundColor Cyan
+Write-Host "Platform URL: $LaunchUrl" -ForegroundColor Cyan
 Write-Host 'API docs:     http://127.0.0.1:8000/docs' -ForegroundColor Cyan

@@ -46,10 +46,13 @@ let selectedTrackMmsi = null;
 let selectedTrackCenterTime = null;
 let selectedTrackStartTime = null;
 let selectedTrackEndTime = null;
+let selectedTrackEvidence = null;
+let trackIdentityMarker = null;
 let selectedTrackRequest = 0;
 let sourceCandidateData = [];
 let sourceCandidateEventId = null;
 let sourceCandidateRadiusNm = null;
+let sourceCandidateContext = null;
 let sourceCandidateRequest = 0;
 let refreshTimer = null;
 let clockTimer = null;
@@ -60,6 +63,9 @@ let mapLayersReady = false;
 let mapLayersInitializing = false;
 let controlsBound = false;
 let floatingPanelManager = null;
+let oilAlertController = null;
+let oilAlertsStarting = false;
+let pollutionSnapshotLoaded = false;
 const requestedBasemap = new URLSearchParams(window.location.search).get('basemap');
 const hasRequestedBasemap = Boolean(requestedBasemap && BASEMAP_LAYERS[requestedBasemap]);
 let basemapAutoMode = !hasRequestedBasemap;
@@ -67,7 +73,7 @@ let activeBasemap = hasRequestedBasemap ? requestedBasemap : automaticBasemapFor
 
 const LAYER_GROUPS = {
   vessels: ['vessel-selection', 'vessels-overview', 'vessels', 'vessel-labels'],
-  tracks: ['track-lines'],
+  tracks: ['track-halo', 'track-lines'],
   pollution: ['pollution-fills', 'pollution-outlines'],
   suspicious: ['suspicious-ships']
 };
@@ -250,14 +256,19 @@ function addOperationalLayers() {
 
   map.addSource('tracks', { type: 'geojson', data: trackData, promoteId: 'mmsi' });
   map.addLayer({
+    id: 'track-halo', type: 'line', source: 'tracks',
+    layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#fff4e8', 'line-width': 7, 'line-opacity': .85 }
+  });
+  map.addLayer({
     id: 'track-lines',
     type: 'line',
     source: 'tracks',
     layout: { visibility: 'none', 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['match', ['get', 'ship_type'], 'Tanker', '#16a3c1', 'Cargo', '#e15d65', 'Fishing', '#7759c7', 'Passenger', '#2aa56e', '#237bad'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1.1, 8, 2.1, 11, 3],
-      'line-opacity': .82
+      'line-color': '#9f1239',
+      'line-width': 4,
+      'line-opacity': 1
     }
   });
 
@@ -288,7 +299,8 @@ function addOperationalLayers() {
   map.on('click', 'suspicious-ships', event => {
     const mmsi = event.features?.[0]?.properties?.mmsi;
     if (!mmsi) return;
-    displaySingleTrack(mmsi).catch(error => showMessage(error.message));
+    // 点击已选标记不能把事前证据航段替换成最新的、事后的轨迹。
+    if (String(mmsi) !== String(selectedTrackMmsi)) displaySingleTrack(mmsi).catch(error => showMessage(error.message));
   });
 }
 
@@ -511,29 +523,41 @@ function renderSatelliteReadiness() {
   setText('#satelliteReadinessLabel', events.length ? `${events.length} mapped events` : 'Data readiness');
 }
 
+function formatUtcTrackTime(value) {
+  if (!value) return '—';
+  const raw = String(value);
+  const date = new Date(/Z$|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw}Z`);
+  if (!Number.isFinite(date.getTime())) return '—';
+  return date.toISOString().slice(0, 19).replace('T', ' ') + ' UTC';
+}
+
 function renderSourceCandidateRows() {
   const container = $('#sourceCandidateList');
   if (!container) return;
   setText('#sourceCandidateCount', `${sourceCandidateData.length} candidates`);
   container.innerHTML = sourceCandidateData.length ? sourceCandidateData.map(item => {
     const crossed = item.match_type === 'INTERSECTS' || item.intersects_event === true;
-    const start = formatDate(item.start_time);
-    const end = formatDate(item.end_time);
+    const start = formatUtcTrackTime(item.start_time);
+    const end = formatUtcTrackTime(item.end_time);
     const distance = crossed ? 'Crossed area' : `${numberValue(item.distance_nm).toFixed(1)} NM`;
-    return `<div class="candidate-row"><strong>${escapeHtml(item.ship_name || item.mmsi || 'Unknown vessel')}<small>MMSI ${escapeHtml(item.mmsi || '—')} · ${escapeHtml(start)} to ${escapeHtml(end)}</small></strong><span>${escapeHtml(item.ship_type || 'Other')}</span><span>${escapeHtml(distance)}</span><em class="${crossed ? 'priority' : ''}">${crossed ? 'Track intersects' : 'Track nearby'}</em><button type="button" data-source-track-mmsi="${escapeHtml(item.mmsi || '')}">SHOW TRACK</button></div>`;
-  }).join('') : '<div class="empty-row">No historical vessel track crosses or approaches this event area within the selected distance.</div>';
+    return `<div class="candidate-row"><strong>${escapeHtml(item.ship_name || item.mmsi || 'Unknown vessel')}<small>MMSI ${escapeHtml(item.mmsi || '—')}<br>${escapeHtml(start)}<br>to ${escapeHtml(end)}</small></strong><span>${escapeHtml(item.ship_type || 'Other')}</span><span>${escapeHtml(distance)}<small>${crossed ? 'Track intersects' : 'Track nearby'}</small></span><span class="candidate-passage-time">${escapeHtml(formatUtcTrackTime(item.match_time))}<small>${numberValue(item.minutes_before_event).toFixed(1)} min before event · estimated</small></span><button type="button" data-source-track-mmsi="${escapeHtml(item.mmsi || '')}">SHOW PASSAGE</button></div>`;
+  }).join('') : '<div class="empty-row">No qualifying pre-event passage was found in this time window and distance. Missing or discontinuous AIS history is not evidence of innocence.</div>';
 }
 
-async function loadSourceCandidates(eventId, nearbyNm) {
+async function loadSourceCandidates(eventId, nearbyNm, lookbackHours) {
   const requestId = ++sourceCandidateRequest;
+  if (selectedTrackEvidence) clearTrackSelection({ notify: false });
+  sourceCandidateData = [];
+  sourceCandidateContext = null;
   const container = $('#sourceCandidateList');
   if (container) container.innerHTML = '<div class="empty-row">Screening historical tracks against the pollution area…</div>';
   setText('#sourceCandidateCount', 'Screening…');
   try {
-    const result = await fetchGeoJson(`/api/pollution-events/${encodeURIComponent(eventId)}/candidate-vessels?nearby_nm=${encodeURIComponent(nearbyNm)}&limit=500`);
+    const result = await fetchGeoJson(`/api/pollution-events/${encodeURIComponent(eventId)}/candidate-vessels?nearby_nm=${encodeURIComponent(nearbyNm)}&lookback_hours=${encodeURIComponent(lookbackHours)}&limit=500`);
     if (requestId !== sourceCandidateRequest) return;
     sourceCandidateEventId = String(eventId);
     sourceCandidateRadiusNm = Number(nearbyNm);
+    sourceCandidateContext = { eventId: String(eventId), eventTime: result.event_time, lookbackHours: Number(lookbackHours) };
     sourceCandidateData = Array.isArray(result.items) ? result.items : [];
     renderSourceCandidateRows();
   } catch (error) {
@@ -550,7 +574,9 @@ function renderSourceAnalysis(options = {}) {
   const feature = syncEventSelect('#sourceEventSelect');
   const container = $('#sourceCandidateList');
   if (!feature || !container) {
+    sourceCandidateRequest += 1;
     sourceCandidateData = [];
+    sourceCandidateContext = null;
     sourceCandidateEventId = null;
     setText('#sourceCandidateCount', '0 candidates');
     if (container) container.innerHTML = '<div class="empty-row">No event record is available for screening</div>';
@@ -560,14 +586,15 @@ function renderSourceAnalysis(options = {}) {
   const center = featureCenter(feature);
   const eventId = String(properties.event_id ?? feature.id);
   const nearbyNm = Number($('#sourceNearbyNm')?.value || 10);
-  setText('#sourceEventTime', formatDate(properties.event_time));
+  const lookbackHours = Number($('#sourceLookbackHours')?.value || 24);
+  setText('#sourceEventTime', formatUtcTrackTime(properties.event_time));
   setText('#sourceEventArea', properties.area_km2 == null ? '—' : `${numberValue(properties.area_km2).toFixed(2)} km²`);
   setText('#sourceEventCoordinates', center ? `${center[1].toFixed(4)}° N, ${center[0].toFixed(4)}° E` : '—');
-  if (!force && sourceCandidateEventId === eventId && sourceCandidateRadiusNm === nearbyNm) {
+  if (!force && sourceCandidateEventId === eventId && sourceCandidateRadiusNm === nearbyNm && sourceCandidateContext?.lookbackHours === lookbackHours && sourceCandidateContext?.eventTime === properties.event_time) {
     renderSourceCandidateRows();
     return;
   }
-  loadSourceCandidates(eventId, nearbyNm);
+  loadSourceCandidates(eventId, nearbyNm, lookbackHours);
 }
 
 function renderAlertCenter() {
@@ -1002,6 +1029,7 @@ async function loadVessels({ initial = false } = {}) {
     if (!response.ok) throw new Error(`API returned ${response.status}`);
     const nextVesselData = await response.json();
     vesselData = nextVesselData;
+    oilAlertController?.refreshVessels(nextVesselData);
     animateVesselUpdate(nextVesselData, { initial });
     updateSummary(vesselData);
     if (mapLayersReady) {
@@ -1040,12 +1068,13 @@ async function loadOperationalLayers({ initial = false } = {}) {
   if (operationalRefreshRunning) return;
   operationalRefreshRunning = true;
   const requestedTrackMmsi = selectedTrackMmsi;
+  const requestedTrackRevision = selectedTrackRequest;
   const refreshCatalog = initial || !trackCatalogData.length || Date.now() - trackCatalogLoadedAt >= TRACK_CATALOG_REFRESH_MS;
   try {
     const [catalogResult, selectedTrackResult, nextPollution, nextSuspicious, nextWarnings] = await Promise.all([
       refreshCatalog ? fetchGeoJson('/api/tracks/catalog?limit=5000') : Promise.resolve(null),
       requestedTrackMmsi
-        ? fetchGeoJson(selectedTrackUrl(requestedTrackMmsi, {
+        ? selectedTrackEvidence ? Promise.resolve(trackData) : fetchGeoJson(selectedTrackUrl(requestedTrackMmsi, {
           centerTime: selectedTrackCenterTime,
           startTime: selectedTrackStartTime,
           endTime: selectedTrackEndTime
@@ -1059,10 +1088,12 @@ async function loadOperationalLayers({ initial = false } = {}) {
       trackCatalogData = Array.isArray(catalogResult.items) ? catalogResult.items : [];
       trackCatalogLoadedAt = Date.now();
     }
-    if (requestedTrackMmsi === selectedTrackMmsi) {
+    if (requestedTrackMmsi === selectedTrackMmsi && requestedTrackRevision === selectedTrackRequest) {
       trackData = selectedTrackResult;
     }
     pollutionData = nextPollution;
+    pollutionSnapshotLoaded = true;
+    oilAlertController?.acceptSnapshot(nextPollution);
     suspiciousData = nextSuspicious;
     warningData = nextWarnings;
     if (mapLayersReady) {
@@ -1230,6 +1261,7 @@ function setLayerGroupVisibility(group, visible) {
   (LAYER_GROUPS[group] || []).forEach(id => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
   });
+  if (group === 'tracks') syncTrackIdentity();
 }
 
 function setLayerToggle(toggleId, group, visible) {
@@ -1248,7 +1280,7 @@ function syncSelectedSuspectMarker() {
     map.getLayer('track-lines') &&
     map.getLayoutProperty('track-lines', 'visibility') !== 'none'
   );
-  const showSelectedSuspect = isSuspected && trackVisible;
+  const showSelectedSuspect = isSuspected && trackVisible && !selectedTrackEvidence;
   map.setFilter(
     'suspicious-ships',
     showSelectedSuspect
@@ -1266,6 +1298,7 @@ function clearTrackSelection({ notify = true } = {}) {
   selectedTrackCenterTime = null;
   selectedTrackStartTime = null;
   selectedTrackEndTime = null;
+  selectedTrackEvidence = null;
   trackData = { type: 'FeatureCollection', features: [] };
   map?.getSource('tracks')?.setData(trackData);
   setLayerToggle('#trackLayerToggle', 'tracks', false);
@@ -1323,7 +1356,37 @@ function renderTrackCatalog() {
   }).join('') : '<div class="empty-row">No vessels match this search.</div>';
 }
 
+function syncTrackIdentity() {
+  const track = trackData.features?.[0];
+  const active = Boolean(selectedTrackMmsi && track && map?.getLayer('track-lines')
+    && map.getLayoutProperty('track-lines', 'visibility') !== 'none');
+  const info = $('#selectedTrackInfo');
+  if (info) info.hidden = !active;
+  if (!active) {
+    trackIdentityMarker?.remove();
+    trackIdentityMarker = null;
+    return;
+  }
+  const p = track.properties || {};
+  const name = p.ship_name || selectedTrackMmsi;
+  setText('#selectedTrackOwner', `${name} · MMSI ${selectedTrackMmsi}`);
+  setText('#selectedTrackPeriod', `${formatUtcTrackTime(p.start_time)} → ${formatUtcTrackTime(p.end_time)}`);
+  setText('#selectedTrackBasis', selectedTrackEvidence
+    ? `${selectedTrackEvidence.eventId} · passage ${numberValue(selectedTrackEvidence.minutes_before_event).toFixed(1)} min before event (estimated)`
+    : 'Selected vessel history — dark red line');
+  const endpoint = track.geometry.coordinates.at(-1);
+  if (!trackIdentityMarker) {
+    const element = document.createElement('div');
+    element.className = 'track-identity-marker';
+    trackIdentityMarker = new maplibregl.Marker({ element, anchor: 'bottom' }).setLngLat(endpoint).addTo(map);
+  }
+  trackIdentityMarker.setLngLat(endpoint);
+  trackIdentityMarker.getElement().innerHTML = `<strong>${escapeHtml(name)}</strong><small>MMSI ${escapeHtml(selectedTrackMmsi)} · Historical position</small>`;
+  trackIdentityMarker.getElement().title = `Historical segment end: ${formatUtcTrackTime(p.end_time)}. The vessel's current position may differ.`;
+}
+
 function updateTrackSelectionStatus(track = trackData.features?.[0]) {
+  syncTrackIdentity();
   const status = $('#trackSelectionStatus');
   const clearButton = $('#clearTrackSelection');
   if (!status) return;
@@ -1356,13 +1419,17 @@ function selectedTrackUrl(mmsi, { centerTime = null, startTime = null, endTime =
   return `/api/tracks?${parameters.toString()}`;
 }
 
-async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = null, startTime = null, endTime = null } = {}) {
+async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = null, startTime = null, endTime = null, evidence = null } = {}) {
   const requestedMmsi = String(mmsi || '').trim();
   if (!requestedMmsi) return showMessage('This vessel has no valid MMSI');
   if (!map.getLayer('track-lines')) return showMessage('The map layers are still loading');
+  clearTrackSelection({ notify: false });
   const requestId = ++selectedTrackRequest;
   showMessage(`Loading historical track for MMSI ${requestedMmsi}…`);
-  const collection = await fetchGeoJson(selectedTrackUrl(requestedMmsi, { centerTime, startTime, endTime }));
+  const collection = evidence ? { type: 'FeatureCollection', features: [{
+    type: 'Feature', id: requestedMmsi, geometry: evidence.evidence_geometry,
+    properties: { ...evidence, mmsi: requestedMmsi, distance_nm: evidence.track_distance_nm }
+  }] } : await fetchGeoJson(selectedTrackUrl(requestedMmsi, { centerTime, startTime, endTime }));
   if (requestId !== selectedTrackRequest) return;
   const track = collection.features?.[0];
   if (!track?.geometry?.coordinates?.length) return showMessage('This vessel does not yet have enough historical points to form a line');
@@ -1371,6 +1438,7 @@ async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = nul
   selectedTrackCenterTime = centerTime || null;
   selectedTrackStartTime = startTime || null;
   selectedTrackEndTime = endTime || null;
+  selectedTrackEvidence = evidence;
   trackData = collection;
   map.getSource('tracks')?.setData(trackData);
   setLayerToggle('#trackLayerToggle', 'tracks', true);
@@ -1384,6 +1452,7 @@ async function displaySingleTrack(mmsi, { closeCatalog = false, centerTime = nul
   renderTrackCatalog();
   if (closeCatalog) floatingPanelManager?.hide('operational-watch');
   showMessage(`Showing ${properties.ship_name || selectedTrackMmsi}'s filtered historical track`);
+  return true;
 }
 
 async function submitTrackQuery(event) {
@@ -1593,14 +1662,16 @@ function bindControls() {
   });
   $('#sourceEventSelect')?.addEventListener('change', () => renderSourceAnalysis({ force: true }));
   $('#sourceNearbyNm')?.addEventListener('change', () => renderSourceAnalysis({ force: true }));
+  $('#sourceLookbackHours')?.addEventListener('change', () => renderSourceAnalysis({ force: true }));
   $('#sourceCandidateList')?.addEventListener('click', event => {
     const button = event.target.closest('[data-source-track-mmsi]');
     if (!button) return;
     const requestedMmsi = String(button.dataset.sourceTrackMmsi || '');
     const candidate = sourceCandidateData.find(item => String(item.mmsi || '') === requestedMmsi);
-    displaySingleTrack(requestedMmsi, { centerTime: candidate?.match_time || null })
-      .then(() => {
-        if (selectedTrackMmsi === requestedMmsi) floatingPanelManager?.hide('source-analysis');
+    if (!candidate?.evidence_geometry || !sourceCandidateContext) return showMessage('Refresh the candidate list to load pre-event passage evidence');
+    displaySingleTrack(requestedMmsi, { evidence: { ...candidate, ...sourceCandidateContext } })
+      .then(displayed => {
+        if (displayed && selectedTrackMmsi === requestedMmsi) floatingPanelManager?.hide('source-analysis');
       })
       .catch(error => showMessage(error.message));
   });
@@ -1622,6 +1693,7 @@ function bindControls() {
   });
   $('#downloadDraftSummary')?.addEventListener('click', downloadDraftSummary);
   $('#detailClose').addEventListener('click', clearSelectedVessel);
+  $('#clearMapTrack')?.addEventListener('click', () => clearTrackSelection());
   $('#searchForm').addEventListener('submit', event => {
     event.preventDefault();
     const query = $('#shipSearch').value.trim();
@@ -1642,11 +1714,31 @@ function initializeMapLayers() {
     mapLayersReady = true;
     applyTypeFilter();
     updateTrackSelectionStatus();
+    startOilAlertModule();
   } catch (error) {
     console.error('Unable to initialize business map layers', error);
   } finally {
     mapLayersInitializing = false;
   }
+}
+
+function startOilAlertModule() {
+  if (oilAlertsStarting || oilAlertController || !mapLayersReady || !floatingPanelManager) return;
+  oilAlertsStarting = true;
+  import('./alerts/index.js?v=20260903-auto-alerts').then(({ createOilAlerts }) => {
+    oilAlertController = createOilAlerts({
+      map, maplibre: maplibregl, manager: floatingPanelManager, apiBase: API_BASE,
+      getVessels: () => vesselData,
+      // Optional deployment adapter for authenticated acknowledgement / push transport.
+      getCurrentUser: () => window.OIL_ALERT_CONFIG?.getCurrentUser?.() || null,
+      config: window.OIL_ALERT_CONFIG || {}
+    });
+    window.oilAlerts = oilAlertController;
+    if (pollutionSnapshotLoaded) oilAlertController.acceptSnapshot(pollutionData);
+  }).catch(error => {
+    console.error('Oil alert module could not start', error);
+    showMessage('Oil alert module unavailable; existing monitoring remains active.');
+  }).finally(() => { oilAlertsStarting = false; });
 }
 
 function initMap() {
@@ -1689,6 +1781,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.addEventListener('beforeunload', () => {
+  oilAlertController?.destroy();
   if (refreshTimer !== null) clearInterval(refreshTimer);
   if (clockTimer !== null) clearInterval(clockTimer);
 });

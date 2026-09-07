@@ -1,0 +1,83 @@
+/* Scoped additions: existing dashboard panels, layer colors and typography stay intact. */
+.oil-alert-window.business-dialog { width:min(810px,calc(100vw - 28px)); height:min(550px,calc(100dvh - 100px)); min-height:0; max-height:calc(100dvh - 90px); border:1px solid #d8b7b2; border-radius:7px; color:#26394b; background:#fff; box-shadow:var(--shadow); }
+.oil-alert-window.business-dialog .floating-panel-header { min-height:62px; padding:10px 16px; background:linear-gradient(100deg,#a92c32,#bf4c30); border-bottom:1px solid #962c2c; }
+.oil-alert-title { display:flex; align-items:center; gap:10px; min-width:0; }
+.oil-alert-window .oil-alert-title h2 { font-size:18px; line-height:1.25; letter-spacing:0; }
+.oil-alert-title p { margin:5px 0 0; color:#ffe9e3; font-size:12px; line-height:1.3; }
+.oil-alert-beacon { color:#fff; font-size:23px; animation:oil-alert-pulse 1.5s ease-in-out infinite; }
+@keyframes oil-alert-pulse { 50% {opacity:.4;} }
+.oil-alert-window.business-dialog .floating-panel-body { padding:0; border-radius:0; background:#fff; font-size:13px; overflow-y:auto; }
+.oil-alert-context { padding:7px 16px; color:#875243; background:#fff8f1; font-size:12px; border-bottom:1px solid #f1e3d6; }
+.oil-alert-columns { display:grid; grid-template-columns:1fr 1.08fr; gap:18px; padding:14px 16px; }
+.oil-alert-columns>section { min-width:0; }
+.oil-alert-columns h3 { margin:0 0 10px; font-size:15px; color:#293d52; }
+.oil-alert-columns h3 small { font-size:11px; font-weight:500; color:#738197; }
+.oil-alert-thumbnail { margin:0 0 10px; border:1px solid #d7e3eb; border-radius:5px; overflow:hidden; background:#e8f2f6; }
+.oil-alert-thumbnail svg,.oil-alert-thumbnail img { display:block; width:100%; height:108px; object-fit:cover; }
+.oil-alert-thumbnail figcaption { padding:5px; text-align:center; background:#f5f8fb; color:#657589; font-size:11px; }
+.oil-alert-event-data,.oil-alert-vessel-data { margin:0; }
+.oil-alert-event-data>div { display:grid; grid-template-columns:100px minmax(0,1fr); padding:6px 0; gap:8px; border-bottom:1px solid #edf1f5; }
+.oil-alert-event-data dt { color:#697a8b; }
+.oil-alert-event-data dd { margin:0; color:#24394f; font-weight:600; overflow-wrap:anywhere; }
+.oil-alert-vessel { display:block; width:100%; text-align:left; background:#f8fafc; border:1px solid #dae3ec; border-left:3px solid #dfb47e; color:#2e4258; padding:10px; border-radius:5px; cursor:pointer; margin-bottom:10px; font-size:12px; }
+.oil-alert-vessel:hover { background:#fff7ed; border-color:#ce9d65; }
+.oil-alert-vessel.selected { border-color:#ad3441; border-left:3px solid #ad3441; background:#fff5f4; }
+.oil-alert-vessel-heading { display:flex; align-items:center; gap:7px; }
+.oil-alert-vessel-heading strong { flex:1; font-size:13px; overflow-wrap:anywhere; }
+.oil-alert-rank { border-radius:4px; background:#e8edf4; padding:3px 6px; font-weight:700; }
+.oil-alert-probability { white-space:nowrap; padding:3px 6px; border-radius:3px; font-size:13px; }
+.oil-alert-probability.high { color:#a52131; background:#ffe4e7; }
+.oil-alert-probability.medium { color:#9b4c13; background:#ffead7; }
+.oil-alert-probability.low { color:#806200; background:#fff3ba; }
+.oil-alert-probability.unknown { color:#5c6e81; background:#e8edf2; }
+.oil-alert-vessel-identity { margin:7px 0; color:#667a8e; font-size:11px; }
+.oil-alert-vessel-data>div { display:grid; grid-template-columns:108px minmax(0,1fr); gap:5px; margin:4px 0; }
+.oil-alert-vessel-data dt { color:#697a8b; }
+.oil-alert-vessel-data dd { margin:0; overflow-wrap:anywhere; }
+.oil-alert-vessel-hint { display:block; margin-top:8px; color:#9c303b; font-size:11px; }
+.oil-alert-disclaimer,.oil-alert-empty { color:#67798e; padding:9px; background:#f1f5f9; border-radius:3px; font-size:12px; line-height:1.6; }
+.oil-alert-footer { flex-shrink:0; padding:8px 16px 12px; background:#f8fafc; border-top:1px solid #dce4ed; }
+.oil-alert-footer>p { margin:0 0 7px; min-height:17px; max-height:38px; overflow-y:auto; color:#66788c; font-size:11px; line-height:1.4; }
+.oil-alert-actions { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+.oil-alert-actions button,.oil-alert-map-tools button { min-height:30px; border:1px solid #c9d5e3; border-radius:4px; background:#fff; color:#315a87; font-size:12px; cursor:pointer; padding:5px 8px; }
+.oil-alert-actions button:hover { background:#eaf1fb; }
+.oil-alert-actions .oil-alert-primary { color:#fff; background:#b7373e; border-color:#b7373e; }
+.oil-alert-actions button:disabled { background:#e8edf2; color:#748396; border-color:#d1dae3; cursor:default; }
+.oil-alert-window.is-minimized { height:62px; max-height:62px; }
+.oil-alert-window.is-minimized .oil-alert-footer { display:none; }
+#oilAlertExtra { margin:0 16px 15px; background:#fff8f1; border:1px solid #eed6bd; border-radius:5px; padding:12px; font-size:13px; }
+#oilAlertExtra h3 { margin:0; }
+.oil-alert-toast { position:fixed; top:75px; right:65px; z-index:2200; display:flex; align-items:center; gap:10px; max-width:min(470px,calc(100vw - 28px)); background:#b33138; color:#fff; padding:12px; border:1px solid #df8989; border-radius:6px; box-shadow:var(--shadow); }
+.oil-alert-toast strong { display:block; font-size:14px; }
+.oil-alert-toast span:not(.oil-alert-beacon) { display:block; margin-top:4px; font-size:11px; overflow-wrap:anywhere; }
+.oil-alert-toast button { border:1px solid #efb6b6; background:#fff1; color:#fff; border-radius:3px; min-width:28px; min-height:28px; cursor:pointer; }
+.oil-alert-count { position:absolute; right:-7px; top:-7px; min-width:20px; height:20px; padding:0 4px; background:#b62d37; border:1px solid #ffe3df; border-radius:10px; color:#fff; font-size:11px; line-height:18px; font-weight:700; }
+.oil-alert-map-tools { position:fixed; bottom:39px; right:65px; max-width:calc(100vw - 28px); z-index:1050; background:#fffdf6f5; color:#6e554b; border:1px solid #d6bca7; border-radius:6px; padding:9px; box-shadow:0 3px 15px #0003; display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+.oil-alert-map-tools>span { font-size:11px; line-height:1.6; }
+.oil-alert-map-label,.oil-alert-passage-label { background:#fffaf0f5; color:#814621; border:1px solid #dbbc86; border-radius:4px; padding:4px 7px; font-size:12px; box-shadow:0 2px 7px #0003; pointer-events:none; }
+.oil-alert-map-label.forecast-6 { color:#274878; border-color:#9db6df; }
+.oil-alert-passage-label { transform:translateY(40px); color:#9d2236; }
+.oil-alert-passage-label strong,.oil-alert-passage-label span,.oil-alert-passage-label small { display:block; }
+.oil-alert-passage-label span { font-size:11px; margin-top:3px; }
+.oil-alert-passage-label small { color:#6b7889; font-size:10px; margin-top:3px; }
+.oil-alert-ship { border:0; background:none; cursor:pointer; padding:0; display:flex; flex-direction:column; align-items:center; }
+.oil-alert-ship>span { display:block; color:#ee8a28; -webkit-text-stroke:1px #fff; font-size:28px; line-height:30px; filter:drop-shadow(0 1px 2px #0008); }
+.oil-alert-ship.selected>span { color:#cf2936; font-size:34px; }
+.oil-alert-ship>b { font-size:11px; margin-top:4px; color:#7a3c18; background:#fff7eaf5; border:1px solid #dca972; padding:3px 5px; border-radius:3px; }
+.oil-alert-ship.selected>b { color:#a02030; border-color:#cc5760; }
+.oil-alert-drift-arrow { pointer-events:none; }
+.oil-alert-drift-arrow span { display:block; font-size:25px; color:#f2b754; -webkit-text-stroke:.6px #382d20; }
+.oil-alert-replay { background:#8e1430; color:#fff; padding:3px 6px; border:2px solid #fff; border-radius:50%; }
+.oil-alert-inbox { border:1px solid #e4cbd0; border-radius:5px; padding:12px; margin-bottom:18px; background:#fff8f6; }
+.oil-alert-inbox h3 { margin:0; color:#8b2836; font-size:15px; }
+.oil-alert-inbox h3 b { float:right; font-size:13px; }
+.oil-alert-inbox p { font-size:12px; margin:6px 0 9px; color:#796b6d; }
+.oil-alert-inbox>div { max-height:120px; overflow-y:auto; }
+.oil-alert-inbox button { display:flex; justify-content:space-between; gap:10px; width:100%; text-align:left; padding:8px; border:1px solid #e6dce0; margin-top:5px; border-radius:3px; background:#fff; color:#4b586b; cursor:pointer; font-size:12px; }
+.oil-alert-dev-tools { margin-top:20px; padding:12px; background:#fff7ed; border:1px dashed #d2a66a; border-radius:5px; color:#654c30; }
+.oil-alert-dev-tools button { margin:8px 4px 0 0; background:#a83338; border:0; color:#fff; padding:9px 12px; border-radius:4px; cursor:pointer; }
+.oil-alert-dev-tools select { margin:8px; color:#34465d; background:#fff; padding:7px; border:1px solid #c8d1dd; }
+.oil-alert-toast[hidden],.oil-alert-map-tools[hidden],.oil-alert-count[hidden],.oil-alert-replay[hidden] { display:none; }
+@media (max-width:850px) { .oil-alert-columns { grid-template-columns:1fr; } .oil-alert-toast { right:14px; } .oil-alert-map-tools { right:14px; max-width:calc(100vw - 28px); } }
+@media (max-width:480px) { .oil-alert-title p { font-size:10px; } .oil-alert-window .oil-alert-title h2 { font-size:15px; } .oil-alert-actions { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (prefers-reduced-motion:reduce) { .oil-alert-beacon { animation:none; } }

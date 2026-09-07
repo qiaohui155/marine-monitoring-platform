@@ -14,7 +14,25 @@
 
     init() {
       document.querySelectorAll('[data-floating-panel]').forEach((element, index) => {
+        this.register(element, index);
+      });
+
+      document.querySelectorAll('[data-panel-target]').forEach(button => {
+        button.addEventListener('click', () => this.open(button.dataset.panelTarget));
+      });
+
+      window.addEventListener('resize', () => this.keepPanelsInViewport());
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') this.hideTopPanel();
+      });
+      this.syncToolbar();
+      return this;
+    }
+
+    // Allow independent feature modules to reuse the same window lifecycle.
+    register(element, index = this.panels.size) {
         const id = element.dataset.floatingPanel;
+        if (this.panels.has(id)) return this.panels.get(id);
         const state = {
           id,
           element,
@@ -49,18 +67,7 @@
           event.stopPropagation();
           this.close(id);
         });
-      });
-
-      document.querySelectorAll('[data-panel-target]').forEach(button => {
-        button.addEventListener('click', () => this.open(button.dataset.panelTarget));
-      });
-
-      window.addEventListener('resize', () => this.keepPanelsInViewport());
-      document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') this.hideTopPanel();
-      });
-      this.syncToolbar();
-      return this;
+        return state;
     }
 
     numberValue(value, fallback) {
