@@ -26,7 +26,11 @@ if (-not (Test-Path -LiteralPath $OutputDirectory)) {
 }
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $Timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$BackupFile = Join-Path $OutputDirectory "Oman_Oil_Monitor_$Timestamp.backup"
+$DatabaseName = $Config['DB_NAME']
+if ([string]::IsNullOrWhiteSpace($DatabaseName)) {
+    throw 'DB_NAME is missing from backend/.env.'
+}
+$BackupFile = Join-Path $OutputDirectory "${DatabaseName}_$Timestamp.backup"
 
 try {
     $env:PGPASSWORD = $Config['DB_PASSWORD']

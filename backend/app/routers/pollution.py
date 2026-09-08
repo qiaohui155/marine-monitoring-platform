@@ -8,6 +8,7 @@ from psycopg import Error as PsycopgError
 
 from ..api_utils import add_bbox_filter, feature_collection, feature_from_row
 from ..database import get_connection
+from ..track_screening import SCREENING_SQL
 
 
 router = APIRouter(tags=["Pollution Events"])
@@ -100,3 +101,48 @@ def get_pollution_event(event_id: str) -> dict:
     if row is None:
         raise HTTPException(status_code=404, detail="Pollution event not found")
     return feature_from_row(dict(row), feature_id_field="event_id")
+
+
+@router.get("/api/pollution-events/{event_id}/candidate-vessels")
+def list_pollution_candidate_vessels(
+    event_id: str,
+    nearby_nm: Annotated[float, Query(gt=0, le=100)] = 10.0,
+    lookback_hours: Annotated[int, Query(ge=1, le=168)] = 24,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+) -> dict:
+    """Return pre-event passage segments, not post-event or whole-life tracks."""
+    try:
+        with get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT event_id, event_time FROM public.oil_spill_event WHERE event_id = %s LIMIT 1",
+                    (event_id,),
+                )
+                event_row = cursor.fetchone()
+                if event_row is None:
+                    raise HTTPException(status_code=404, detail="Pollution event not found")
+                if event_row['event_time'] is None:
+                    raise HTTPException(status_code=422, detail="Event time is required for temporal screening")
+                cursor.execute(SCREENING_SQL, {
+                    "event_id": event_id, "nearby_nm": nearby_nm,
+                    "lookback_hours": lookback_hours, "max_gap_minutes": 30, "limit": limit,
+                })
+                rows = [dict(row) for row in cursor.fetchall()]
+    except HTTPException:
+        raise
+    except (PsycopgError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    intersects_count = sum(1 for row in rows if row["intersects_event"])
+    return {
+        "event_id": event_id,
+        "event_time": event_row["event_time"],
+        "nearby_nm": nearby_nm,
+        "lookback_hours": lookback_hours,
+        "time_rule": "strictly_before_event",
+        "max_gap_minutes": 30,
+        "count": len(rows),
+        "intersects_count": intersects_count,
+        "nearby_count": len(rows) - intersects_count,
+        "items": rows,
+    }

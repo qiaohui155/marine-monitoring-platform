@@ -1,3 +1,7 @@
+param(
+    [switch]$AlertTest
+)
+
 $ErrorActionPreference = 'Stop'
 $PlatformDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDirectory = Join-Path $PlatformDirectory 'backend'
@@ -6,6 +10,33 @@ $Python = Join-Path $BackendDirectory '.venv\Scripts\python.exe'
 $BackendUrl = 'http://127.0.0.1:8000/'
 $DatabaseHealthUrl = 'http://127.0.0.1:8000/api/health'
 $FrontendUrl = 'http://127.0.0.1:5173/'
+$LaunchUrl = if ($AlertTest) { "$($FrontendUrl)?devAlerts=1&demoAlert=1" } else { $FrontendUrl }
+$EnvironmentFile = Join-Path $BackendDirectory '.env'
+
+function Read-DotEnv {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $Values = @{}
+    Get-Content -LiteralPath $Path | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+)=(.*)$') {
+            $Values[$Matches[1].Trim()] = $Matches[2].Trim()
+        }
+    }
+    return $Values
+}
+
+function Get-ShipxyCollectorProcesses {
+    return @(Get-CimInstance Win32_Process | Where-Object {
+        $_.Name -eq 'python.exe' -and
+        [string]$_.CommandLine -match '(?:-m\s+app\.shipxy_ingest|app[\\/]shipxy_ingest\.py)'
+    })
+}
+
+function Get-SimulatedAisProcesses {
+    return @(Get-CimInstance Win32_Process | Where-Object {
+        $_.Name -eq 'python.exe' -and
+        [string]$_.CommandLine -match '-m\s+app\.simulated_ais(?:\s|$)'
+    })
+}
 
 function Test-ServiceUrl {
     param([Parameter(Mandatory = $true)][string]$Url)
@@ -38,11 +69,12 @@ function Wait-ServiceUrl {
 if (-not (Test-Path $Python)) {
     throw 'The backend environment is missing.'
 }
-if (-not (Test-Path (Join-Path $BackendDirectory '.env'))) {
+if (-not (Test-Path $EnvironmentFile)) {
     throw 'The database configuration is missing.'
 }
+$Environment = Read-DotEnv -Path $EnvironmentFile
 
-Write-Host '[1/3] Checking backend API...'
+Write-Host '[1/5] Checking backend API...'
 if (-not (Test-ServiceUrl -Url $BackendUrl)) {
     $BackendProcess = Start-Process -FilePath $Python `
         -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000') `
@@ -69,7 +101,83 @@ catch {
     Write-Warning 'The API started, but the database health check timed out.'
 }
 
-Write-Host '[2/3] Checking frontend service...'
+Write-Host '[2/5] Checking live AIS collector...'
+$AutoStartCollector = [string]$Environment['SHIPXY_AUTO_START'] -match '^(?i:true|1|yes|on)$'
+$CollectorTargetDatabase = [string]$Environment['SHIPXY_TARGET_DB']
+$ActiveDatabase = [string]$Environment['DB_NAME']
+if (-not $AutoStartCollector) {
+    Write-Host '[OK] Automatic AIS collection is disabled.' -ForegroundColor DarkGray
+}
+elseif (
+    -not [string]::IsNullOrWhiteSpace($CollectorTargetDatabase) -and
+    -not [string]::Equals($CollectorTargetDatabase, $ActiveDatabase, [System.StringComparison]::OrdinalIgnoreCase)
+) {
+    Write-Warning "AIS collection was not started because DB_NAME is '$ActiveDatabase', not '$CollectorTargetDatabase'."
+}
+elseif (
+    [string]::IsNullOrWhiteSpace([string]$Environment['SHIPXY_API_KEY']) -or
+    [string]::IsNullOrWhiteSpace([string]$Environment['SHIPXY_MMSI_LIST'])
+) {
+    Write-Warning 'AIS collection was not started because the ShipXY key or MMSI list is missing.'
+}
+else {
+    $CollectorProcesses = Get-ShipxyCollectorProcesses
+    if ($CollectorProcesses.Count -eq 0) {
+        $LogDirectory = Join-Path $BackendDirectory 'logs'
+        New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+        $CollectorProcess = Start-Process -FilePath $Python `
+            -ArgumentList @('-m', 'app.shipxy_ingest') `
+            -WorkingDirectory $BackendDirectory `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $LogDirectory 'shipxy-collector.out.log') `
+            -RedirectStandardError (Join-Path $LogDirectory 'shipxy-collector.err.log') `
+            -PassThru
+        Start-Sleep -Seconds 1
+        if ($CollectorProcess.HasExited) {
+            throw 'The AIS collector exited during startup. Check backend/logs/shipxy-collector.err.log.'
+        }
+        Write-Host "[OK] Started live AIS collector process $($CollectorProcess.Id)." -ForegroundColor Green
+    }
+    else {
+        Write-Host '[OK] Live AIS collector is already running.' -ForegroundColor Green
+    }
+}
+
+Write-Host '[3/5] Checking simulated AIS service...'
+$SimulatedAutoStart = [string]$Environment['SIMULATED_AIS_AUTO_START'] -match '^(?i:true|1|yes|on)$'
+$SimulatorTargetDatabase = [string]$Environment['SIMULATED_AIS_TARGET_DB']
+if (-not $SimulatedAutoStart) {
+    Write-Host '[OK] Simulated AIS movement is disabled.' -ForegroundColor DarkGray
+}
+elseif ($AutoStartCollector) {
+    Write-Warning 'Simulated AIS movement was not started because live AIS collection is enabled.'
+}
+elseif (
+    -not [string]::IsNullOrWhiteSpace($SimulatorTargetDatabase) -and
+    -not [string]::Equals($SimulatorTargetDatabase, $ActiveDatabase, [System.StringComparison]::OrdinalIgnoreCase)
+) {
+    Write-Warning "Simulated AIS was not started because DB_NAME is '$ActiveDatabase', not '$SimulatorTargetDatabase'."
+}
+else {
+    $SimulatorProcesses = Get-SimulatedAisProcesses
+    if ($SimulatorProcesses.Count -eq 0) {
+        $SimulatorProcess = Start-Process -FilePath $Python `
+            -ArgumentList @('-m', 'app.simulated_ais') `
+            -WorkingDirectory $BackendDirectory `
+            -WindowStyle Hidden `
+            -PassThru
+        Start-Sleep -Milliseconds 800
+        if ($SimulatorProcess.HasExited) {
+            throw 'The simulated AIS service exited during startup. Check backend/logs/simulated_ais.log.'
+        }
+        Write-Host "[OK] Started simulated AIS process $($SimulatorProcess.Id)." -ForegroundColor Green
+    }
+    else {
+        Write-Host '[OK] Simulated AIS service is already running.' -ForegroundColor Green
+    }
+}
+
+Write-Host '[4/5] Checking frontend service...'
 if (-not (Test-ServiceUrl -Url $FrontendUrl)) {
     $FrontendProcess = Start-Process -FilePath $Python `
         -ArgumentList @('-m', 'http.server', '5173', '--bind', '127.0.0.1') `
@@ -83,8 +191,8 @@ else {
     Write-Host '[OK] Frontend service is already running.' -ForegroundColor Green
 }
 
-Write-Host '[3/3] Opening the monitoring platform...'
-Start-Process $FrontendUrl
+Write-Host '[5/5] Opening the monitoring platform...'
+Start-Process $LaunchUrl
 Write-Host ''
-Write-Host 'Platform URL: http://127.0.0.1:5173/' -ForegroundColor Cyan
+Write-Host "Platform URL: $LaunchUrl" -ForegroundColor Cyan
 Write-Host 'API docs:     http://127.0.0.1:8000/docs' -ForegroundColor Cyan

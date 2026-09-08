@@ -11,6 +11,7 @@ from typing import Any
 
 import requests
 
+from .config import DB_CONFIG
 from .database import get_connection
 
 
@@ -139,6 +140,9 @@ def fetch_positions(session: requests.Session, api_key: str, mmsis: str) -> list
         timeout=15,
     )
     response.raise_for_status()
+    # ShipXY JSON messages are UTF-8, but some responses omit the charset and
+    # requests may otherwise decode Chinese error messages as ISO-8859-1.
+    response.encoding = response.apparent_encoding or "utf-8"
     result = response.json()
     if str(result.get("status")) != "0":
         raise RuntimeError(f"ShipXY query failed: {result.get('msg') or 'unknown error'}")
@@ -219,6 +223,74 @@ def _upsert_current(cursor: Any, position: AisPosition) -> None:
     )
 
 
+def _relation_kind(cursor: Any, relation_name: str) -> str | None:
+    cursor.execute(
+        """
+        SELECT relation.relkind
+        FROM pg_class AS relation
+        JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+        WHERE namespace.nspname = 'public'
+          AND relation.relname = %s
+        """,
+        (relation_name,),
+    )
+    row = cursor.fetchone()
+    return str(row["relkind"]) if row else None
+
+
+def _append_raw_ais_position(cursor: Any, position: AisPosition) -> bool:
+    """Append a source AIS report when ship_position is a read-only view."""
+    cursor.execute(
+        """
+        SELECT base_date_time, longitude, latitude, speed, course
+        FROM public.ais_position
+        WHERE mmsi = %s
+        ORDER BY base_date_time DESC NULLS LAST, id DESC
+        LIMIT 1
+        """,
+        (position.mmsi,),
+    )
+    previous = cursor.fetchone()
+    if previous:
+        previous_time = previous["base_date_time"]
+        if previous_time and position.update_time < previous_time:
+            return False
+        same_report = (
+            previous_time == position.update_time
+            and float(previous["longitude"]) == position.longitude
+            and float(previous["latitude"]) == position.latitude
+            and _float(previous["speed"]) == position.speed
+            and _float(previous["course"]) == position.course
+        )
+        if same_report:
+            return False
+
+    cursor.execute(
+        """
+        INSERT INTO public.ais_position
+            (base_date_time, mmsi, ship_name, latitude, longitude,
+             speed, course, heading, ship_type, geom)
+        VALUES
+            (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+             ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+        """,
+        (
+            position.update_time,
+            position.mmsi,
+            position.ship_name,
+            position.latitude,
+            position.longitude,
+            position.speed,
+            position.course,
+            position.course,
+            position.ship_type,
+            position.longitude,
+            position.latitude,
+        ),
+    )
+    return True
+
+
 def _append_track_if_needed(
     cursor: Any,
     position: AisPosition,
@@ -272,33 +344,61 @@ def _append_track_if_needed(
     return True
 
 
-def save_positions(positions: list[AisPosition], minimum_seconds: int, minimum_metres: float) -> int:
+def save_positions(
+    positions: list[AisPosition], minimum_seconds: int, minimum_metres: float
+) -> tuple[int, int]:
+    current_count = 0
     track_count = 0
     with get_connection() as connection:
         try:
             with connection.cursor() as cursor:
+                ship_position_kind = _relation_kind(cursor, "ship_position")
+                ais_position_kind = _relation_kind(cursor, "ais_position")
+                ship_track_kind = _relation_kind(cursor, "ship_track")
+                use_raw_ais_table = ship_position_kind == "v" and ais_position_kind in {"r", "p"}
+                if ship_position_kind not in {"r", "p", "v"}:
+                    raise RuntimeError("public.ship_position is missing from the target database.")
+                if ship_position_kind == "v" and not use_raw_ais_table:
+                    raise RuntimeError(
+                        "public.ship_position is read-only and public.ais_position is unavailable."
+                    )
+
                 for position in positions:
-                    _upsert_current(cursor, position)
-                    if _append_track_if_needed(cursor, position, minimum_seconds, minimum_metres):
+                    if use_raw_ais_table:
+                        if _append_raw_ais_position(cursor, position):
+                            current_count += 1
+                    else:
+                        _upsert_current(cursor, position)
+                        current_count += 1
+                    if ship_track_kind in {"r", "p"} and _append_track_if_needed(
+                        cursor, position, minimum_seconds, minimum_metres
+                    ):
                         track_count += 1
             connection.commit()
         except Exception:
             connection.rollback()
             raise
-    return track_count
+    return current_count, track_count
 
 
-def _settings() -> tuple[str, str, int, int, float]:
+def _settings() -> tuple[str, str, int, int, float, int]:
     api_key = os.getenv("SHIPXY_API_KEY", "").strip()
     mmsis = ",".join(part.strip() for part in os.getenv("SHIPXY_MMSI_LIST", "").split(",") if part.strip())
     if not api_key:
         raise RuntimeError("SHIPXY_API_KEY is missing. Run configure_shipxy.bat first.")
     if not mmsis:
         raise RuntimeError("SHIPXY_MMSI_LIST is missing. Run configure_shipxy.bat first.")
+    target_database = os.getenv("SHIPXY_TARGET_DB", "").strip()
+    if target_database and DB_CONFIG["dbname"].casefold() != target_database.casefold():
+        raise RuntimeError(
+            f"ShipXY collection is restricted to database {target_database!r}; "
+            f"the active database is {DB_CONFIG['dbname']!r}."
+        )
     poll_seconds = max(5, int(os.getenv("SHIPXY_POLL_SECONDS", "15")))
     track_seconds = max(10, int(os.getenv("SHIPXY_TRACK_MIN_SECONDS", "60")))
     track_metres = max(0.0, float(os.getenv("SHIPXY_TRACK_MIN_METERS", "20")))
-    return api_key, mmsis, poll_seconds, track_seconds, track_metres
+    max_backoff_seconds = max(poll_seconds, int(os.getenv("SHIPXY_MAX_BACKOFF_SECONDS", "300")))
+    return api_key, mmsis, poll_seconds, track_seconds, track_metres, max_backoff_seconds
 
 
 def main() -> None:
@@ -308,10 +408,11 @@ def main() -> None:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 
-    api_key, mmsis, poll_seconds, track_seconds, track_metres = _settings()
+    api_key, mmsis, poll_seconds, track_seconds, track_metres, max_backoff_seconds = _settings()
     LOGGER.info("ShipXY collector started for %s MMSI number(s).", len(mmsis.split(",")))
     LOGGER.info("Current positions update every %s seconds; track filtering is enabled.", poll_seconds)
 
+    consecutive_failures = 0
     with requests.Session() as session:
         while True:
             cycle_started = time.monotonic()
@@ -320,18 +421,35 @@ def main() -> None:
                 if args.dry_run:
                     LOGGER.info("Received %s valid position(s); dry-run skipped database writes.", len(positions))
                 else:
-                    track_count = save_positions(positions, track_seconds, track_metres)
+                    current_count, track_count = save_positions(
+                        positions, track_seconds, track_metres
+                    )
                     LOGGER.info(
-                        "Saved %s current position(s) and %s new track point(s).",
+                        "Received %s valid position(s); stored %s current update(s) "
+                        "and %s new track point(s).",
                         len(positions),
+                        current_count,
                         track_count,
                     )
+                consecutive_failures = 0
             except Exception as exc:
+                consecutive_failures += 1
                 LOGGER.error("Collection cycle failed: %s", exc)
 
             if args.once:
                 break
-            wait_seconds = max(0.0, poll_seconds - (time.monotonic() - cycle_started))
+            requested_wait = poll_seconds
+            if consecutive_failures:
+                requested_wait = min(
+                    max_backoff_seconds,
+                    poll_seconds * (2 ** min(consecutive_failures, 6)),
+                )
+                LOGGER.warning(
+                    "Next collection attempt in %s seconds after %s consecutive failure(s).",
+                    requested_wait,
+                    consecutive_failures,
+                )
+            wait_seconds = max(0.0, requested_wait - (time.monotonic() - cycle_started))
             try:
                 time.sleep(wait_seconds)
             except KeyboardInterrupt:
